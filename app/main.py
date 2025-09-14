@@ -41,7 +41,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 app = FastAPI(title="AlexandraLex API")
 
 # Servir arquivos estáticos
-app.mount("/static", StaticFiles(directory="static"), full_name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ------------------------ Páginas HTML ------------------------
 
