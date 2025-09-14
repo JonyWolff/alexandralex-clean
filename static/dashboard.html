@@ -595,7 +595,7 @@
                 <div class="stat-card">
                     <div class="stat-title">Condomínios</div>
                     <div class="stat-value" id="stat-condos">0</div>
-                    <div class="stat-limit" id="stat-condos-limit">de 1</div>
+                    <div class="stat-limit" id="stat-condos-limit"></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-title">Uploads este mês</div>
@@ -750,39 +750,39 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
 
         // Load user data
         async function loadUserData() {
-            try {
-                const response = await fetch('/api/me', {
-    headers: {'Authorization': `Bearer ${localStorage.getItem('token')||localStorage.getItem('access_token')||''}`}
-});
-                if (!response.ok) {
-                    window.location.href = '/';
-                    return;
-                }
-                
-                const data = await response.json();
-                currentUser = data.user;
-                
-                // Update UI
-                document.getElementById('user-name').textContent = data.user.full_name;
-                document.getElementById('user-plan').textContent = `Plano: ${data.user.plan}`;
-                
-                // Update stats
-                document.getElementById('stat-condos').textContent = data.stats.condominiums_count;
-                document.getElementById('stat-condos-limit').textContent = `de ${data.stats.condominiums_limit}`;
-                document.getElementById('stat-uploads').textContent = data.stats.uploads_this_month;
-                document.getElementById('stat-uploads-limit').textContent = `de ${data.stats.uploads_limit}`;
-                document.getElementById('stat-queries').textContent = data.stats.queries_today;
-                document.getElementById('stat-queries-limit').textContent = `de ${data.stats.queries_limit}`;
-                
-                // Show trial warning if needed
-                if (data.user.plan === 'TRIAL' && data.stats.trial_days_left !== null) {
-                    document.getElementById('trial-warning').style.display = 'block';
-                    document.getElementById('trial-days').textContent = data.stats.trial_days_left;
-                }
-            } catch (error) {
-                console.error('Error loading user data:', error);
-            }
+    try {
+        const response = await fetch('/api/me', {
+            headers: {'Authorization': `Bearer ${localStorage.getItem('token')||localStorage.getItem('access_token')||''}`}
+        });
+        if (!response.ok) {
+            window.location.href = '/';
+            return;
         }
+        
+        const data = await response.json();
+        currentUser = data;  // ✅ CORRETO - sem .user
+        
+        // Update UI
+        document.getElementById('user-name').textContent = data.full_name;  // ✅
+        document.getElementById('user-plan').textContent = `Plano: ${data.plan}`;  // ✅
+        
+        // Update stats - mantém como está, está correto
+        document.getElementById('stat-condos').textContent = data.stats.condominiums_count;
+        document.getElementById('stat-condos-limit').textContent = `de ${data.stats.condominiums_limit}`;
+        document.getElementById('stat-uploads').textContent = data.stats.uploads_this_month;
+        document.getElementById('stat-uploads-limit').textContent = `de ${data.stats.uploads_limit}`;
+        document.getElementById('stat-queries').textContent = data.stats.queries_today;
+        document.getElementById('stat-queries-limit').textContent = `de ${data.stats.queries_limit}`;
+        
+        // Show trial warning if needed
+        if (data.plan === 'TRIAL' && data.stats.trial_days_left !== null) {  // ✅
+            document.getElementById('trial-warning').style.display = 'block';
+            document.getElementById('trial-days').textContent = data.stats.trial_days_left;
+        }
+    } catch (error) {
+        console.error('Error loading user data:', error);
+    }
+}
 
         // Load condominiums
         async function loadCondominiums() {
