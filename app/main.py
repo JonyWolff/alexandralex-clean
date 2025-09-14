@@ -116,6 +116,10 @@ async def get_me(
         Condominio.sindico_id == current_user.id,
         Condominio.is_active == True
     ).scalar()
+    
+    uploads_count = db.query(func.count(Document.id)).filter(
+        Document.sindico_id == current_user.id
+    ).scalar()
 
     return {
         "user": {
@@ -128,7 +132,7 @@ async def get_me(
         "stats": {
             "condominiums_count": condos_count or 0,
             "condominiums_limit": 10,
-            "uploads_this_month": 0,
+            "uploads_this_month": uploads_count or 0,
             "uploads_limit": 20,
             "queries_today": 0,
             "queries_limit": 20,
