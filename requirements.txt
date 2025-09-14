@@ -28,3 +28,4 @@ python-dotenv
 pydantic
 pydantic-settings  
 psycopg2-binary==2.9.9
+python-jose[cryptography]==3.3.0
