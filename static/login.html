@@ -269,7 +269,7 @@
                 
                 if (response.ok) {
                     showSuccess('Login realizado! Redirecionando...');
-                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('token', data.access_token);
                     localStorage.setItem('user', JSON.stringify(data.user));
                     setTimeout(() => {
                         window.location.href = '/dashboard';
@@ -312,7 +312,7 @@
                     
                     if (loginResponse.ok) {
                         const loginData = await loginResponse.json();
-                        localStorage.setItem('access_token', loginData.access_token);
+                        localStorage.setItem('token', loginData.access_token);
                         localStorage.setItem('user', JSON.stringify(loginData.user));
                         
                         setTimeout(() => {
