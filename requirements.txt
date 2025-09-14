@@ -1,0 +1,30 @@
+# FastAPI e servidor
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Banco de dados
+sqlalchemy
+pymysql  
+
+# Autenticação e segurança
+bcrypt
+passlib
+python-jose[cryptography]
+
+# IA e RAG - versões compatíveis
+openai
+langchain
+langchain-openai
+langchain-community
+pinecone
+
+# Processamento de documentos
+pypdf
+PyPDF2==3.0.1
+
+# Utilidades
+python-dotenv
+pydantic
+pydantic-settings  
+psycopg2-binary==2.9.9
