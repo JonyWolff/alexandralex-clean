@@ -1,31 +1,30 @@
 # FastAPI e servidor
-fastapi
-uvicorn[standard]
-python-multipart
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+python-multipart==0.0.20
 
 # Banco de dados
-sqlalchemy
-pymysql  
+sqlalchemy==2.0.43
+pymysql==1.1.1
+psycopg2-binary==2.9.9
 
 # Autenticação e segurança
-bcrypt
-passlib
-python-jose[cryptography]
+bcrypt==4.2.0
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
 
-# IA e RAG - versões compatíveis
-openai
-langchain
-langchain-openai
-langchain-community
-pinecone
+# IA e RAG
+openai==1.107.2
+langchain==0.3.27
+langchain-openai==0.3.33
+langchain-community==0.3.29
+pinecone==7.3.0
 
 # Processamento de documentos
-pypdf
+pypdf==6.0.0
 PyPDF2==3.0.1
 
 # Utilidades
-python-dotenv
-pydantic
-pydantic-settings  
-psycopg2-binary==2.9.9
-python-jose[cryptography]==3.3.0
+python-dotenv==1.0.1
+pydantic==2.11.9
+pydantic-settings==2.10.1

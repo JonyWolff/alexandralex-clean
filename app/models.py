@@ -1,8 +1,9 @@
 # app/models.py
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Text, Date
 from sqlalchemy.orm import relationship
-from datetime import datetime, timedelta
+from datetime import datetime
 from .database import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -10,7 +11,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)  # ⚡ corrigido
     phone = Column(String)
     plan = Column(String, default="TRIAL")  # TRIAL, BASICO, PROFISSIONAL, PREMIUM
     trial_ends_at = Column(DateTime)
@@ -23,6 +24,7 @@ class User(Base):
     queries = relationship("Query", back_populates="user")
     limits = relationship("UserLimit", back_populates="user", uselist=False)
     documents = relationship("Document", back_populates="uploader")
+
 
 class Condominio(Base):
     __tablename__ = "condominios"
@@ -40,6 +42,7 @@ class Condominio(Base):
     sindico = relationship("User", back_populates="condominios")
     documents = relationship("Document", back_populates="condominio")
     queries = relationship("Query", back_populates="condominio")
+
 
 class Document(Base):
     __tablename__ = "documents"
@@ -62,6 +65,7 @@ class Document(Base):
     condominio = relationship("Condominio", back_populates="documents")
     uploader = relationship("User", back_populates="documents")
 
+
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
     
@@ -74,6 +78,7 @@ class KnowledgeBase(Base):
     is_public = Column(Boolean, default=True)
     chunks_count = Column(Integer)
     embeddings_count = Column(Integer)
+
 
 class Query(Base):
     __tablename__ = "queries"
@@ -90,6 +95,7 @@ class Query(Base):
     # Relacionamentos
     user = relationship("User", back_populates="queries")
     condominio = relationship("Condominio", back_populates="queries")
+
 
 class UserLimit(Base):
     __tablename__ = "user_limits"
@@ -115,13 +121,14 @@ class UserLimit(Base):
     # Relacionamento
     user = relationship("User", back_populates="limits")
 
+
 # Planos e seus limites
 PLAN_LIMITS = {
     "TRIAL": {
         "condominiums": 1,
         "uploads_month": 5,
         "queries_day": 10,
-        "duration_days": 10,
+        "duration_days": 10,  # ⚡ corrigido
         "price": 0
     },
     "BASICO": {

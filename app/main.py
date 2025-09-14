@@ -1,15 +1,13 @@
 # app/main.py
 import os
 import json
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from typing import Optional
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from passlib.context import CryptContext
-from jose import JWTError, jwt
 from dotenv import load_dotenv
 
 # Imports locais
@@ -18,7 +16,6 @@ from .models import Base, User, Condominio, Document, Query, KnowledgeBase
 from .auth import (
     authenticate_user, 
     create_access_token, 
-    get_current_user,
     get_current_active_user,
     pwd_context
 )
@@ -47,13 +44,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    """Página inicial - redireciona para login"""
     with open("static/login.html", "r", encoding="utf-8") as f:
         return f.read()
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
-    """Dashboard principal"""
     try:
         with open("static/dashboard.html", "r", encoding="utf-8") as f:
             return f.read()
@@ -62,7 +57,6 @@ async def dashboard():
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page():
-    """Página de registro"""
     with open("static/register.html", "r", encoding="utf-8") as f:
         return f.read()
 
@@ -70,20 +64,17 @@ async def register_page():
 
 @app.post("/api/register")
 async def register(request: Request, db: Session = Depends(get_db)):
-    """Registrar novo usuário"""
     data = await request.json()
     
-    # Verificar se usuário já existe
     existing_user = db.query(User).filter(User.email == data["email"]).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email já cadastrado")
     
-    # Criar novo usuário
     hashed_password = pwd_context.hash(data["password"])
     new_user = User(
         email=data["email"],
         full_name=data.get("name", data["email"].split("@")[0]),
-        hashed_password=hashed_password,
+        password_hash=hashed_password,
         phone=data.get("phone")
     )
     
@@ -91,49 +82,58 @@ async def register(request: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
-    # Criar token
     access_token = create_access_token(data={"sub": new_user.email})
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": {
-            "id": new_user.id,
-            "email": new_user.email,
-        }
+        "user": {"id": new_user.id, "email": new_user.email}
     }
 
 @app.post("/api/login")
 async def login(request: Request, db: Session = Depends(get_db)):
-    """Login de usuário"""
     data = await request.json()
     
     user = authenticate_user(db, data["email"], data["password"])
     if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="Email ou senha incorretos"
-        )
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
     
-    # Criar token
     access_token = create_access_token(data={"sub": user.email})
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-        }
+        "user": {"id": user.id, "email": user.email}
     }
 
 @app.get("/api/me")
-async def get_me(current_user: User = Depends(get_current_active_user)):
-    """Retorna informações do usuário atual"""
+async def get_me(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Retorna informações do usuário atual + estatísticas básicas"""
+    condos_count = db.query(func.count(Condominio.id)).filter(
+        Condominio.sindico_id == current_user.id,
+        Condominio.is_active == True
+    ).scalar()
+
     return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "is_active": current_user.is_active
+        "user": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "plan": current_user.plan,
+            "is_active": current_user.is_active
+        },
+        "stats": {
+            "condominiums_count": condos_count or 0,
+            "condominiums_limit": 10,
+            "uploads_this_month": 0,
+            "uploads_limit": 20,
+            "queries_today": 0,
+            "queries_limit": 20,
+            "trial_days_left": None
+        }
     }
 
 # ------------------------ Condomínios ------------------------
@@ -143,7 +143,6 @@ async def get_condominiums(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Lista os condomínios do usuário"""
     condominiums = db.query(Condominio).filter(
         Condominio.sindico_id == current_user.id,
         Condominio.is_active == True
@@ -152,9 +151,10 @@ async def get_condominiums(
     return [
         {
             "id": c.id,
-            "name": c.full_name,
+            "name": c.name,
             "address": c.address,
             "units": c.units,
+            "cnpj": c.cnpj,
             "created_at": c.created_at.isoformat() if c.created_at else None
         }
         for c in condominiums
@@ -166,26 +166,21 @@ async def create_condominium(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Cria um novo condomínio"""
     data = await request.json()
     
-    # Verificar limite de condomínios (exemplo: máximo 5)
     count = db.query(func.count(Condominio.id)).filter(
         Condominio.sindico_id == current_user.id,
         Condominio.is_active == True
     ).scalar()
     
-    if count >= 5:
-        raise HTTPException(
-            status_code=400,
-            detail="Limite de condomínios atingido (máximo: 5)"
-        )
+    if count >= 10:  # Aumentado para 10
+        raise HTTPException(status_code=400, detail="Limite de condomínios atingido (máximo: 10)")
     
-    # Criar condomínio
     condominium = Condominio(
-        full_name=data["name"],
+        name=data["name"],
         address=data.get("address", ""),
         units=data.get("units", 0),
+        cnpj=data.get("cnpj", ""),
         sindico_id=current_user.id
     )
     
@@ -195,7 +190,11 @@ async def create_condominium(
     
     return {
         "id": condominium.id,
-        "name": condominium.full_name,
+        "name": condominium.name,
+        "address": condominium.address,
+        "units": condominium.units,
+        "cnpj": condominium.cnpj,
+        "created_at": condominium.created_at.isoformat() if condominium.created_at else None,
         "message": "Condomínio criado com sucesso!"
     }
 
@@ -207,9 +206,7 @@ async def get_documents(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Lista documentos de um condomínio"""
-    documents = get_document_list(condominium_id, current_user.id, db)
-    return documents
+    return get_document_list(condominium_id, current_user.id, db)
 
 @app.post("/api/upload")
 async def upload_document(
@@ -220,16 +217,14 @@ async def upload_document(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Upload de documento para um condomínio"""
-    result = await process_upload(
+    return await process_upload(
         file=file,
         condo_id=condominium_id,
         sindico_id=current_user.id,
         db=db
     )
-    return result
 
-# ------------------------ Query (Busca Inteligente) ------------------------
+# ------------------------ Query ------------------------
 
 @app.post("/api/query")
 async def query_documents(
@@ -237,32 +232,18 @@ async def query_documents(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Busca inteligente nos documentos"""
-    # Parse do body
     raw_body = await request.body()
-    print(f"RAW BODY: {raw_body}")
-    
     try:
         data = await request.json()
     except:
         data = json.loads(raw_body)
     
-    print(f"JSON DATA: {data}")
-    
     query = data.get("question", "")
     condominium_id = data.get("condominium_id")
     
-    print(f"DEBUG: Query recebida: {query}")
-    print(f"DEBUG: Condomínio ID: {condominium_id}")
-    print(f"DEBUG: User ID: {current_user.id}")
-    
     if not query or not condominium_id:
-        return {
-            "answer": "Por favor, forneça uma pergunta e selecione um condomínio.",
-            "sources": []
-        }
+        return {"answer": "Por favor, forneça uma pergunta e selecione um condomínio.", "sources": []}
     
-    # Verificar permissão
     condominium = db.query(Condominio).filter(
         Condominio.id == condominium_id,
         Condominio.sindico_id == current_user.id
@@ -272,17 +253,9 @@ async def query_documents(
         raise HTTPException(status_code=403, detail="Sem permissão para este condomínio")
     
     try:
-        # Chamar o sistema RAG
         rag = get_or_create_rag()
-        result = rag.query(
-            query=query,
-            sindico_id=current_user.id,
-            condo_id=condominium_id
-        )
+        result = rag.query(query=query, sindico_id=current_user.id, condo_id=condominium_id)
         
-        print(f"DEBUG: Resultado do RAG: {result}")
-        
-        # Salvar query no histórico
         query_record = Query(
             user_id=current_user.id,
             condominio_id=condominium_id,
@@ -294,15 +267,9 @@ async def query_documents(
         db.add(query_record)
         db.commit()
 
-        # Se não encontrou resultados
         if not result.get("success", False):
-            print(f"DEBUG: RAG falhou - {result.get('error', 'Sem erro específico')}")
-            return {
-                "answer": f"Recebi sua pergunta sobre: '{query}'. O sistema está processando os documentos. Em breve teremos respostas mais precisas.",
-                "sources": []
-            }
+            return {"answer": f"Recebi sua pergunta: '{query}'. O sistema está processando os documentos.", "sources": []}
         
-        # Sucesso
         return {
             "answer": result["answer"],
             "sources": result.get("sources", []),
@@ -310,12 +277,7 @@ async def query_documents(
         }
         
     except Exception as e:
-        print(f"ERRO na query: {str(e)}")
-        return {
-            "answer": "Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente.",
-            "sources": [],
-            "error": str(e)
-        }
+        return {"answer": "Erro ao processar a pergunta.", "sources": [], "error": str(e)}
 
 # ------------------------ Dra. Alexandra ------------------------
 
@@ -325,42 +287,30 @@ async def chat_alexandra(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Chat com a Dra. Alexandra"""
     data = await request.json()
-    
     result = await alexandra_chat(
         question=data.get("message", ""),
         context={},
         user_id=current_user.id,
         db=db
     )
-    
     return {"answer": result.get("answer", "Desculpe, não consegui processar.")}
 
 # ------------------------ Health ------------------------
 
 @app.get("/api/health")
 async def health_check():
-    """Verificação de saúde da API"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat()
-    }
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/health")
 async def health():
-    """Health check alternativo"""
     return {"status": "ok"}
 
 # ------------------------ Teste ------------------------
 
 @app.get("/api/test")
 async def test():
-    """Endpoint de teste"""
-    return {
-        "message": "API funcionando!",
-        "timestamp": datetime.now().isoformat()
-    }
+    return {"message": "API funcionando!", "timestamp": datetime.now().isoformat()}
 
 if __name__ == "__main__":
     import uvicorn

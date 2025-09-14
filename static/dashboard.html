@@ -787,7 +787,11 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
         // Load condominiums
         async function loadCondominiums() {
             try {
-                const response = await fetch('/api/condominiums');
+                const response = await fetch('/api/condominiums', {
+    headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+    }
+});
                 const data = await response.json();
                 condominiums = data;
                 
@@ -815,7 +819,11 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
         // Load documents
         async function loadDocuments() {
             try {
-                const response = await fetch(`/api/documents${currentCondo ? '?condominium_id=' + currentCondo : ''}`);
+                const response = await fetch(`/api/documents${currentCondo ? '?condominium_id=' + currentCondo : ''}`, {
+    headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+    }
+});
                 if (response.ok) {
                     const documents = await response.json();
                     document.getElementById('stat-uploads').textContent = documents.length;
@@ -858,13 +866,16 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             
             try {
                 const response = await fetch('/api/query', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        question: query,
-                        condominium_id: currentCondo ? parseInt(currentCondo) : null
-                    })
-                });
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+    },
+    body: JSON.stringify({
+        question: query,
+        condominium_id: currentCondo ? parseInt(currentCondo) : null
+    })
+});
                 
                 if (!response.ok) {
                     const error = await response.json();
@@ -957,10 +968,13 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             
             try {
                 const response = await fetch('/api/condominiums', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name, address, units, cnpj})
-                });
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+    },
+    body: JSON.stringify({name, address, units, cnpj})
+});   
                 
                 if (response.ok) {
                     closeAddCondoModal();
@@ -1026,13 +1040,16 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             // Enviar para API
             try {
                 const response = await fetch('/api/alexandra', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        message: message,
-                        condominium_id: currentCondo ? parseInt(currentCondo) : null
-                    })
-                });
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+    },
+    body: JSON.stringify({
+        message: message,
+        condominium_id: currentCondo ? parseInt(currentCondo) : null
+    })
+});
                 
                 // Remove typing indicator
                 document.getElementById(typingId).remove();
@@ -1114,9 +1131,12 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             
             try {
                 const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
+    method: 'POST',
+    headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+    },
+    body: formData
+});
                 
                 const result = await response.json();
                 
