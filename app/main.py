@@ -41,7 +41,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 app = FastAPI(title="AlexandraLex API")
 
 # Servir arquivos estáticos
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="static"), full_name="static")
 
 # ------------------------ Páginas HTML ------------------------
 
@@ -82,7 +82,7 @@ async def register(request: Request, db: Session = Depends(get_db)):
     hashed_password = pwd_context.hash(data["password"])
     new_user = User(
         email=data["email"],
-        name=data.get("name", data["email"].split("@")[0]),
+        full_name=data.get("name", data["email"].split("@")[0]),
         hashed_password=hashed_password,
         phone=data.get("phone")
     )
@@ -152,7 +152,7 @@ async def get_condominiums(
     return [
         {
             "id": c.id,
-            "name": c.name,
+            "name": c.full_name,
             "address": c.address,
             "units": c.units,
             "created_at": c.created_at.isoformat() if c.created_at else None
@@ -183,7 +183,7 @@ async def create_condominium(
     
     # Criar condomínio
     condominium = Condominio(
-        name=data["name"],
+        full_name=data["name"],
         address=data.get("address", ""),
         units=data.get("units", 0),
         sindico_id=current_user.id
@@ -195,7 +195,7 @@ async def create_condominium(
     
     return {
         "id": condominium.id,
-        "name": condominium.name,
+        "name": condominium.full_name,
         "message": "Condomínio criado com sucesso!"
     }
 
