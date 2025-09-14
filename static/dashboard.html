@@ -751,7 +751,9 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
         // Load user data
         async function loadUserData() {
             try {
-                const response = await fetch('/api/me');
+                const response = await fetch('/api/me', {
+    headers: {'Authorization': `Bearer ${localStorage.getItem('token')||localStorage.getItem('access_token')||''}`}
+});
                 if (!response.ok) {
                     window.location.href = '/';
                     return;
