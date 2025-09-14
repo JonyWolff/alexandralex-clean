@@ -124,13 +124,13 @@ async def get_me(
         "plan": current_user.plan,
         "is_active": current_user.is_active,
         "stats": {
-            "condominiums_count": condos_count,
-            "condominiums_limit": 1 if current_user.plan == "TRIAL" else 10,
-            "uploads_this_month": 0,
-            "uploads_limit": 20,
-            "queries_today": 0,
-            "queries_limit": 20
-        }
+    "condominiums_count": condos_count or 0,
+    "condominiums_limit": 10,  # Força 10 para teste
+    "uploads_this_month": 0,
+    "uploads_limit": 20,
+    "queries_today": 0,
+    "queries_limit": 20
+}
     }
 
 # ------------------------ Condomínios ------------------------
@@ -170,8 +170,8 @@ async def create_condominium(
         Condominio.is_active == True
     ).scalar()
     
-    if count >= 5:  # limite simples
-        raise HTTPException(status_code=400, detail="Limite de condomínios atingido (máximo: 5)")
+    if count >= 10:  # limite simples
+        raise HTTPException(status_code=400, detail="Limite de condomínios atingido (máximo: 10)")
     
     condominium = Condominio(
         name=data["name"],
