@@ -204,7 +204,54 @@ async def get_documents(
     db: Session = Depends(get_db)
 ):
     return get_document_list(condominium_id, current_user.id, db)
-
+@app.delete("/api/documents/{document_id}")
+async def delete_document(
+    document_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Deleta um documento do PostgreSQL e Pinecone
+    """
+    # Buscar documento verificando se pertence ao usuário
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.uploaded_by == current_user.id
+    ).first()
+    
+    if not doc:
+        raise HTTPException(
+            status_code=404, 
+            detail="Documento não encontrado ou sem permissão"
+        )
+    
+    try:
+        # 1. Deletar do Pinecone (se configurado)
+        if os.getenv('PINECONE_API_KEY'):
+            from pinecone import Pinecone
+            pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
+            index = pc.Index('alexandralex')
+            
+            namespace = f"user_{current_user.id}_cond_{doc.condominio_id}"
+            
+            try:
+                index.delete(
+                    filter={"filename": doc.filename},
+                    namespace=namespace
+                )
+            except Exception as e:
+                print(f"Aviso Pinecone: {e}")
+        
+        # 2. Deletar do PostgreSQL
+        db.delete(doc)
+        db.commit()
+        
+        return {"message": "Documento deletado com sucesso", "id": document_id}
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Erro ao deletar documento: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao processar solicitação")
 @app.post("/api/upload")
 async def upload_document(
     file: UploadFile = File(...),
