@@ -227,7 +227,7 @@
             font-size: 14px;
         }
 
-        /* Search Area - NOVO */
+        /* Search Area */
         .search-area {
             margin-top: 30px;
             padding: 20px;
@@ -318,6 +318,7 @@
             padding: 20px;
             cursor: pointer;
             transition: all 0.3s;
+            position: relative;
         }
 
         .doc-card:hover {
@@ -340,6 +341,26 @@
         .doc-date {
             color: #9CA3AF;
             font-size: 12px;
+        }
+
+        /* Botão de delete para documentos */
+        .doc-delete-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+
+        .doc-delete-btn:hover {
+            opacity: 1;
         }
 
         /* Chat Area */
@@ -615,7 +636,7 @@
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('documents')">
-                    📁 Documentos
+                    📄 Documentos
                 </button>
                 <button class="tab" onclick="switchTab('chat')">
                     💬 Dra. Alexandra
@@ -634,7 +655,7 @@
                 </div>
                 <input type="file" id="file-input" style="display: none;" accept=".pdf,.txt" onchange="handleFileUpload(this)">
                 
-                <!-- NOVA SEÇÃO DE BUSCA SEMÂNTICA -->
+                <!-- SEÇÃO DE BUSCA SEMÂNTICA -->
                 <div class="search-area">
                     <h3 class="search-title">🔍 Busca Inteligente nos Documentos</h3>
                     <p class="search-subtitle">Faça perguntas sobre os documentos enviados e receba respostas baseadas no conteúdo.</p>
@@ -741,57 +762,54 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
         // Initialize
         async function init() {
             await loadUserData();
-            // Incrementar contador visual de consultas
-let currentQueries = parseInt(document.getElementById('stat-queries').textContent) || 0;
-document.getElementById('stat-queries').textContent = currentQueries + 1;
             await loadCondominiums();
             await loadDocuments();
         }
 
         // Load user data
         async function loadUserData() {
-    try {
-        const response = await fetch('/api/me', {
-            headers: {'Authorization': `Bearer ${localStorage.getItem('token')||localStorage.getItem('access_token')||''}`}
-        });
-        if (!response.ok) {
-            window.location.href = '/';
-            return;
+            try {
+                const response = await fetch('/api/me', {
+                    headers: {'Authorization': `Bearer ${localStorage.getItem('token')||localStorage.getItem('access_token')||''}`}
+                });
+                if (!response.ok) {
+                    window.location.href = '/';
+                    return;
+                }
+                
+                const data = await response.json();
+                currentUser = data;
+                
+                // Update UI
+                document.getElementById('user-name').textContent = data.full_name;
+                document.getElementById('user-plan').textContent = `Plano: ${data.plan}`;
+                
+                // Update stats
+                document.getElementById('stat-condos').textContent = data.stats.condominiums_count;
+                document.getElementById('stat-condos-limit').textContent = `de ${data.stats.condominiums_limit}`;
+                document.getElementById('stat-uploads').textContent = data.stats.uploads_this_month;
+                document.getElementById('stat-uploads-limit').textContent = `de ${data.stats.uploads_limit}`;
+                document.getElementById('stat-queries').textContent = data.stats.queries_today;
+                document.getElementById('stat-queries-limit').textContent = `de ${data.stats.queries_limit}`;
+                
+                // Show trial warning if needed
+                if (data.plan === 'TRIAL' && data.stats.trial_days_left !== null) {
+                    document.getElementById('trial-warning').style.display = 'block';
+                    document.getElementById('trial-days').textContent = data.stats.trial_days_left;
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+            }
         }
-        
-        const data = await response.json();
-        currentUser = data;  // ✅ CORRETO - sem .user
-        
-        // Update UI
-        document.getElementById('user-name').textContent = data.full_name;  // ✅
-        document.getElementById('user-plan').textContent = `Plano: ${data.plan}`;  // ✅
-        
-        // Update stats - mantém como está, está correto
-        document.getElementById('stat-condos').textContent = data.stats.condominiums_count;
-        document.getElementById('stat-condos-limit').textContent = `de ${data.stats.condominiums_limit}`;
-        document.getElementById('stat-uploads').textContent = data.stats.uploads_this_month;
-        document.getElementById('stat-uploads-limit').textContent = `de ${data.stats.uploads_limit}`;
-        document.getElementById('stat-queries').textContent = data.stats.queries_today;
-        document.getElementById('stat-queries-limit').textContent = `de ${data.stats.queries_limit}`;
-        
-        // Show trial warning if needed
-        if (data.plan === 'TRIAL' && data.stats.trial_days_left !== null) {  // ✅
-            document.getElementById('trial-warning').style.display = 'block';
-            document.getElementById('trial-days').textContent = data.stats.trial_days_left;
-        }
-    } catch (error) {
-        console.error('Error loading user data:', error);
-    }
-}
 
         // Load condominiums
         async function loadCondominiums() {
             try {
                 const response = await fetch('/api/condominiums', {
-    headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
-    }
-});
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    }
+                });
                 const data = await response.json();
                 condominiums = data;
                 
@@ -816,14 +834,14 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             }
         }
 
-        // Load documents
+        // Load documents - MODIFICADO PARA INCLUIR BOTÃO DELETE
         async function loadDocuments() {
             try {
                 const response = await fetch(`/api/documents${currentCondo ? '?condominium_id=' + currentCondo : ''}`, {
-    headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
-    }
-});
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    }
+                });
                 if (response.ok) {
                     const documents = await response.json();
                     document.getElementById('stat-uploads').textContent = documents.length;
@@ -832,6 +850,9 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
                     if (documents.length > 0) {
                         docsContainer.innerHTML = documents.map(doc => `
                             <div class="doc-card">
+                                <button class="doc-delete-btn" onclick="deleteDocument(${doc.id}, '${doc.filename.replace(/'/g, "\\'")}')">
+                                    🗑️ Deletar
+                                </button>
                                 <div class="doc-icon">📄</div>
                                 <div class="doc-name">${doc.filename}</div>
                                 <div class="doc-date">${new Date(doc.uploaded_at).toLocaleDateString()}</div>
@@ -846,7 +867,40 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             }
         }
 
-        // NOVA FUNÇÃO: Busca Semântica RAG
+        // NOVA FUNÇÃO: Deletar documento
+        async function deleteDocument(docId, docName) {
+            if (!confirm(`Tem certeza que deseja deletar o documento "${docName}"?`)) {
+                return;
+            }
+            
+            if (!confirm('Esta ação não pode ser desfeita. Confirmar exclusão?')) {
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+                const response = await fetch(`/api/documents/${docId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    alert('Documento deletado com sucesso!');
+                    await loadDocuments(); // Recarregar lista
+                    await loadUserData(); // Atualizar stats
+                } else {
+                    const error = await response.json();
+                    alert(`Erro: ${error.detail || 'Falha ao deletar documento'}`);
+                }
+            } catch (error) {
+                alert('Erro ao deletar documento. Tente novamente.');
+                console.error(error);
+            }
+        }
+
+        // Busca Semântica RAG
         async function searchDocuments() {
             const query = document.getElementById('searchQuery').value.trim();
             const searchBtn = document.getElementById('searchBtn');
@@ -866,16 +920,16 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             
             try {
                 const response = await fetch('/api/query', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
-    },
-    body: JSON.stringify({
-        question: query,
-        condominium_id: currentCondo ? parseInt(currentCondo) : null
-    })
-});
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    },
+                    body: JSON.stringify({
+                        question: query,
+                        condominium_id: currentCondo ? parseInt(currentCondo) : null
+                    })
+                });
                 
                 if (!response.ok) {
                     const error = await response.json();
@@ -885,7 +939,6 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
                 const data = await response.json();
                 
                 if (data.answer) {
-                    // Formatar resposta
                     searchResultsContent.innerHTML = formatSearchResponse(data.answer);
                 } else if (data.message) {
                     searchResultsContent.innerHTML = data.message;
@@ -906,7 +959,7 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             }
         }
 
-        // NOVA FUNÇÃO: Formatar resposta da busca
+        // Formatar resposta da busca
         function formatSearchResponse(text) {
             return text
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -915,7 +968,7 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
                 .replace(/•/g, '&bull;');
         }
 
-        // NOVA FUNÇÃO: Handle Enter key na busca
+        // Handle Enter key na busca
         function handleSearchKeyPress(event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
@@ -968,13 +1021,13 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             
             try {
                 const response = await fetch('/api/condominiums', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
-    },
-    body: JSON.stringify({name, address, units, cnpj})
-});   
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    },
+                    body: JSON.stringify({name, address, units, cnpj})
+                });   
                 
                 if (response.ok) {
                     closeAddCondoModal();
@@ -1040,16 +1093,16 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             // Enviar para API
             try {
                 const response = await fetch('/api/alexandra', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
-    },
-    body: JSON.stringify({
-        message: message,
-        condominium_id: currentCondo ? parseInt(currentCondo) : null
-    })
-});
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        condominium_id: currentCondo ? parseInt(currentCondo) : null
+                    })
+                });
                 
                 // Remove typing indicator
                 document.getElementById(typingId).remove();
@@ -1131,12 +1184,12 @@ document.getElementById('stat-queries').textContent = currentQueries + 1;
             
             try {
                 const response = await fetch('/api/upload', {
-    method: 'POST',
-    headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
-    },
-    body: formData
-});
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    },
+                    body: formData
+                });
                 
                 const result = await response.json();
                 
