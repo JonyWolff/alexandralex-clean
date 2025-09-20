@@ -15,7 +15,7 @@ router = APIRouter(
 )
 
 # Lista de admins (adicione os emails autorizados)
-ADMIN_EMAILS = ["juliawolff6@gmail.com", "SEU_EMAIL_AQUI"]
+ADMIN_EMAILS = ["juliawolff6@gmail.com", "jonywolff@gmail.com"]
 
 def verify_admin(current_user=Depends(get_current_user)):
     """Verifica se o usuário é admin"""
