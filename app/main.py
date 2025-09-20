@@ -4,7 +4,7 @@ import json
 from typing import Optional
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import func
