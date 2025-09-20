@@ -365,3 +365,7 @@ async def test():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+# Página de upload da Base de Conhecimento (apenas admins)
+@app.get("/knowledge-upload", response_class=HTMLResponse)
+async def knowledge_upload_page():
+    return FileResponse('static/knowledge_upload.html')
