@@ -52,8 +52,8 @@ async def upload_knowledge_document(
         
         # Processar com RAG no namespace especial
         rag = get_or_create_rag()
-        result = await rag.process_document_to_pinecone(
-            file_path=temp_file.name,
+        result = result = await rag.process_pdf_content(
+            pdf_content=content,
             sindico_id=0,  # 0 = Base de Conhecimento Geral
             condo_id=0,    # 0 = Base de Conhecimento Geral
             doc_id=f"kb_{category}_{file.filename}"
