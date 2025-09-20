@@ -136,3 +136,7 @@ async def search_knowledge_base(
             "condominium": len(results) - len(kb_results)
         }
     }
+# DEBUG - Remover depois
+@router.get("/debug-user")
+async def debug_user(current_user = Depends(get_current_user)):
+    return {"user": current_user, "is_admin": current_user.get("email") in ADMIN_EMAILS}
