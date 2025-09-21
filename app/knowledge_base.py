@@ -191,7 +191,7 @@ async def search_knowledge_base(
         
         # Usar query_documents em vez de search_documents
         search_results = rag.query(
-    question=query,
+    query=query,
     sindico_id=0,
     condo_id=0
 )
