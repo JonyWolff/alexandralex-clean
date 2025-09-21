@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import tempfile
+from datetime import datetime  # ← ADICIONADO O IMPORT QUE FALTAVA
 
 from .database import get_db
 from .auth import get_current_user
@@ -136,6 +137,7 @@ async def search_knowledge_base(
             "condominium": len(results) - len(kb_results)
         }
     }
+
 # DEBUG - Remover depois
 @router.get("/debug-user")
 async def debug_user(current_user = None):
