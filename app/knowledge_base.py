@@ -31,6 +31,7 @@ async def test_knowledge():
     return {"message": "✅ Base de Conhecimento funcionando!"}
 
 # ========== UPLOAD DE DOCUMENTO ==========
+# NÃO MUDEI NADA AQUI - MANTIVE EXATAMENTE COMO ESTÁ FUNCIONANDO
 @router.post("/upload")
 async def upload_knowledge_document(
     file: UploadFile = File(...),
@@ -140,85 +141,92 @@ async def upload_knowledge_document(
             except:
                 pass
 
-# ========== LISTAGEM DE DOCUMENTOS ==========
+# ========== LISTAGEM MELHORADA ==========
 @router.get("/list")
 async def list_knowledge_documents(
     db: Session = Depends(get_db),
-    current_user = None
+    current_user = Depends(get_current_user)  # MUDANÇA: adicionar autenticação
 ):
     """Listar documentos da base de conhecimento"""
     try:
-        docs = db.query(KnowledgeBase).all()
+        docs = db.query(KnowledgeBase).order_by(KnowledgeBase.id.desc()).all()
+        
+        documents_list = []
+        for doc in docs:
+            doc_info = {
+                "id": doc.id,
+                "filename": doc.filename,
+                "category": doc.category if hasattr(doc, 'category') else 'geral',
+                "description": doc.description if hasattr(doc, 'description') else '',
+                "chunks_count": doc.chunks_count if hasattr(doc, 'chunks_count') else 0
+            }
+            documents_list.append(doc_info)
+        
         return {
             "success": True,
-            "documents": [
-                {
-                    "id": doc.id,
-                    "filename": doc.filename,
-                    "category": doc.category,
-                    "description": doc.description,
-                    "processed": doc.processed,
-                    "chunks_count": doc.chunks_count,
-                    "created_at": doc.created_at.isoformat() if hasattr(doc, 'created_at') and doc.created_at else None
-                }
-                for doc in docs
-            ],
-            "total": len(docs)
+            "documents": documents_list,
+            "total": len(documents_list)
         }
+        
     except Exception as e:
         print(f"Erro ao listar documentos: {e}")
         return {"success": False, "error": str(e), "documents": []}
 
-# ========== BUSCA NA BASE ==========
+# ========== BUSCA MELHORADA ==========
 @router.post("/search")
 async def search_knowledge_base(
     query: str = Form(...),
     condo_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
-    current_user = None
+    current_user = Depends(get_current_user)  # MUDANÇA: adicionar autenticação
 ):
-    """Busca híbrida: Base de Conhecimento + Documentos do Condomínio"""
+    """Busca na Base de Conhecimento"""
     
     from .rag_system import get_or_create_rag
     
     try:
         rag = get_or_create_rag()
-        results = []
         
-        # Buscar na Base de Conhecimento Geral
-        print(f"DEBUG: Buscando '{query}' na base de conhecimento")
-        kb_results = rag.search_documents(
+        print(f"DEBUG SEARCH: Buscando '{query}' na base de conhecimento")
+        
+        # Usar query_documents em vez de search_documents
+        search_results = rag.query_documents(
             query=query,
-            namespace="user_0_cond_0"  # namespace da base geral
+            sindico_id=0,  # 0 = Base Geral
+            condo_id=0,    # 0 = Base Geral
+            k=10           # Top 10 resultados
         )
         
-        # Se forneceu condo_id, buscar também nos docs do condomínio
-        if condo_id and current_user:
-            sindico_id = current_user.get('id', 0)
-            print(f"DEBUG: Buscando também no condomínio {condo_id}")
-            condo_results = rag.search_documents(
-                query=query,
-                namespace=f"user_{sindico_id}_cond_{condo_id}"
-            )
-            results.extend(condo_results)
+        # Formatar resultados
+        formatted_results = []
         
-        # Combinar e ranquear resultados
-        results.extend(kb_results)
-        results.sort(key=lambda x: x.get('score', 0), reverse=True)
+        if search_results and 'matches' in search_results:
+            for match in search_results['matches']:
+                formatted_results.append({
+                    'id': match.get('id', ''),
+                    'score': match.get('score', 0),
+                    'text': match.get('metadata', {}).get('text', ''),
+                    'metadata': {
+                        'filename': match.get('metadata', {}).get('filename', 'Documento'),
+                        'category': match.get('metadata', {}).get('category', 'geral'),
+                        'chunk_index': match.get('metadata', {}).get('chunk_index', 0)
+                    }
+                })
+        
+        print(f"DEBUG SEARCH: Encontrados {len(formatted_results)} resultados")
         
         return {
             "success": True,
             "query": query,
-            "results": results[:10],  # Top 10 resultados
-            "sources": {
-                "knowledge_base": len(kb_results),
-                "condominium": len(results) - len(kb_results)
-            },
-            "total_results": len(results)
+            "results": formatted_results,
+            "total_results": len(formatted_results)
         }
         
     except Exception as e:
-        print(f"Erro na busca: {e}")
+        print(f"ERRO na busca: {e}")
+        import traceback
+        print(f"TRACEBACK: {traceback.format_exc()}")
+        
         return {
             "success": False,
             "error": str(e),
@@ -242,13 +250,10 @@ async def knowledge_base_status(db: Session = Depends(get_db)):
     """Verificar status da base de conhecimento"""
     try:
         doc_count = db.query(KnowledgeBase).count()
-        processed_count = db.query(KnowledgeBase).filter(KnowledgeBase.processed == True).count()
         
         return {
             "success": True,
             "total_documents": doc_count,
-            "processed_documents": processed_count,
-            "pending_documents": doc_count - processed_count,
             "status": "operational"
         }
     except Exception as e:
