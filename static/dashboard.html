@@ -343,7 +343,6 @@
             font-size: 12px;
         }
 
-        /* Botão de delete para documentos */
         .doc-delete-btn {
             position: absolute;
             top: 10px;
@@ -537,7 +536,6 @@
             cursor: pointer;
         }
 
-        /* Trial Warning */
         .trial-warning {
             background: var(--warning);
             color: white;
@@ -546,7 +544,6 @@
             font-size: 14px;
         }
 
-        /* Loading indicator */
         .typing-indicator {
             display: flex;
             gap: 4px;
@@ -580,12 +577,10 @@
     </style>
 </head>
 <body>
-    <!-- Trial Warning -->
     <div id="trial-warning" class="trial-warning" style="display: none;">
         ⏰ Seu período de teste termina em <span id="trial-days"></span> dias
     </div>
 
-    <!-- Header -->
     <div class="header">
         <div class="logo">
             🏢 AlexandraLex
@@ -600,7 +595,6 @@
     </div>
 
     <div class="container">
-        <!-- Sidebar -->
         <div class="sidebar">
             <div class="condo-selector">
                 <label>Condomínio Ativo:</label>
@@ -631,9 +625,7 @@
             </div>
         </div>
 
-        <!-- Main Content -->
         <div class="main-content">
-            <!-- Tabs -->
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('documents')">
                     📄 Documentos
@@ -646,7 +638,6 @@
                 </button>
             </div>
 
-            <!-- Documents Tab -->
             <div id="documents-tab" class="tab-content active">
                 <div class="upload-area" onclick="document.getElementById('file-input').click()">
                     <div class="upload-icon">📤</div>
@@ -655,7 +646,6 @@
                 </div>
                 <input type="file" id="file-input" style="display: none;" accept=".pdf,.txt" onchange="handleFileUpload(this)">
                 
-                <!-- SEÇÃO DE BUSCA SEMÂNTICA -->
                 <div class="search-area">
                     <h3 class="search-title">🔍 Busca Inteligente nos Documentos</h3>
                     <p class="search-subtitle">Faça perguntas sobre os documentos enviados e receba respostas baseadas no conteúdo.</p>
@@ -678,11 +668,9 @@
                 </div>
                 
                 <div class="documents-grid" id="documents-list">
-                    <!-- Documents will be loaded here -->
                 </div>
             </div>
 
-            <!-- Chat Tab -->
             <div id="chat-tab" class="tab-content">
                 <div class="chat-container">
                     <div class="chat-header">
@@ -706,27 +694,45 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 </div>
             </div>
 
-            <!-- Knowledge Base Tab -->
+            <!-- Knowledge Base Tab ATUALIZADA -->
             <div id="knowledge-tab" class="tab-content">
-                <h2>Base de Conhecimento Geral</h2>
+                <h2>📚 Base de Conhecimento Geral</h2>
                 <p>Documentos e leis disponíveis para todos os síndicos:</p>
-                <div class="documents-grid">
-                    <div class="doc-card">
-                        <div class="doc-icon">⚖️</div>
-                        <div class="doc-name">Código Civil - Condomínios</div>
-                        <div class="doc-date">Lei Federal</div>
+                
+                <!-- Interface de Busca -->
+                <div class="search-area" style="margin: 20px 0;">
+                    <h3 class="search-title">🔍 Buscar na Base de Conhecimento</h3>
+                    <p class="search-subtitle">Pesquise sobre leis, normas e regulamentos de condomínios</p>
+                    <div class="search-input-group">
+                        <input type="text" 
+                               id="knowledge-search-input" 
+                               class="search-input" 
+                               placeholder="Ex: lei do barulho, normas de reforma, código civil..." 
+                               onkeypress="if(event.key==='Enter') searchKnowledgeBase()">
+                        <button onclick="searchKnowledgeBase()" 
+                                id="knowledge-search-btn" 
+                                class="search-button">
+                            🔍 Buscar
+                        </button>
                     </div>
+                    <div id="knowledge-search-results" class="search-results" style="display: none;">
+                        <h4 class="search-results-title">📋 Resultados:</h4>
+                        <div id="knowledge-results-content" class="search-results-content"></div>
+                    </div>
+                </div>
+                
+                <!-- Lista de Documentos -->
+                <div class="documents-grid" id="knowledge-documents-list">
                     <div class="doc-card">
-                        <div class="doc-icon">📋</div>
-                        <div class="doc-name">NBR 16280</div>
-                        <div class="doc-date">Norma ABNT</div>
+                        <div class="doc-icon">📄</div>
+                        <div class="doc-name">Carregando documentos...</div>
+                        <div class="doc-date">Aguarde</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Add Condo Modal -->
     <div id="add-condo-modal" class="modal">
         <div class="modal-content">
             <div class="modal-title">Adicionar Condomínio</div>
@@ -759,14 +765,12 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
         let condominiums = [];
         let isSending = false;
 
-        // Initialize
         async function init() {
             await loadUserData();
             await loadCondominiums();
             await loadDocuments();
         }
 
-        // Load user data
         async function loadUserData() {
             try {
                 const response = await fetch('/api/me', {
@@ -780,11 +784,9 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 const data = await response.json();
                 currentUser = data;
                 
-                // Update UI
                 document.getElementById('user-name').textContent = data.full_name;
                 document.getElementById('user-plan').textContent = `Plano: ${data.plan}`;
                 
-                // Update stats
                 document.getElementById('stat-condos').textContent = data.stats.condominiums_count;
                 document.getElementById('stat-condos-limit').textContent = `de ${data.stats.condominiums_limit}`;
                 document.getElementById('stat-uploads').textContent = data.stats.uploads_this_month;
@@ -792,7 +794,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 document.getElementById('stat-queries').textContent = data.stats.queries_today;
                 document.getElementById('stat-queries-limit').textContent = `de ${data.stats.queries_limit}`;
                 
-                // Show trial warning if needed
                 if (data.plan === 'TRIAL' && data.stats.trial_days_left !== null) {
                     document.getElementById('trial-warning').style.display = 'block';
                     document.getElementById('trial-days').textContent = data.stats.trial_days_left;
@@ -802,7 +803,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         }
 
-        // Load condominiums
         async function loadCondominiums() {
             try {
                 const response = await fetch('/api/condominiums', {
@@ -813,7 +813,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 const data = await response.json();
                 condominiums = data;
                 
-                // Update selector
                 const select = document.getElementById('condo-select');
                 select.innerHTML = '<option value="">Selecione um condomínio</option>';
                 
@@ -824,7 +823,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                     select.appendChild(option);
                 });
                 
-                // Select first if available
                 if (data.length > 0) {
                     select.value = data[0].id;
                     currentCondo = data[0].id;
@@ -834,7 +832,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         }
 
-        // Load documents - MODIFICADO PARA INCLUIR BOTÃO DELETE
         async function loadDocuments() {
             try {
                 const response = await fetch(`/api/documents${currentCondo ? '?condominium_id=' + currentCondo : ''}`, {
@@ -867,7 +864,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         }
 
-        // NOVA FUNÇÃO: Deletar documento
         async function deleteDocument(docId, docName) {
             if (!confirm(`Tem certeza que deseja deletar o documento "${docName}"?`)) {
                 return;
@@ -888,8 +884,8 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 
                 if (response.ok) {
                     alert('Documento deletado com sucesso!');
-                    await loadDocuments(); // Recarregar lista
-                    await loadUserData(); // Atualizar stats
+                    await loadDocuments();
+                    await loadUserData();
                 } else {
                     const error = await response.json();
                     alert(`Erro: ${error.detail || 'Falha ao deletar documento'}`);
@@ -900,7 +896,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         }
 
-        // Busca Semântica RAG
         async function searchDocuments() {
             const query = document.getElementById('searchQuery').value.trim();
             const searchBtn = document.getElementById('searchBtn');
@@ -912,7 +907,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 return;
             }
             
-            // UI feedback
             searchBtn.disabled = true;
             searchBtn.innerHTML = '⏳ Buscando...';
             searchResultsContent.innerHTML = 'Analisando documentos...';
@@ -946,7 +940,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                     searchResultsContent.innerHTML = '❌ Nenhuma resposta encontrada. Verifique se há documentos enviados para este condomínio.';
                 }
                 
-                // Atualizar contador de queries
                 let currentQueries = parseInt(document.getElementById('stat-queries').textContent) || 0;
                 document.getElementById('stat-queries').textContent = currentQueries + 1;  
                 
@@ -959,7 +952,116 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         }
 
-        // Formatar resposta da busca
+        // FUNÇÕES DA BASE DE CONHECIMENTO
+        async function searchKnowledgeBase() {
+            const query = document.getElementById('knowledge-search-input').value.trim();
+            const searchBtn = document.getElementById('knowledge-search-btn');
+            const resultsDiv = document.getElementById('knowledge-search-results');
+            const resultsContent = document.getElementById('knowledge-results-content');
+            
+            if (!query) {
+                alert('Por favor, digite algo para buscar');
+                return;
+            }
+            
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '⏳ Buscando...';
+            resultsContent.innerHTML = 'Pesquisando na base de conhecimento...';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                const formData = new FormData();
+                formData.append('query', query);
+                
+                const response = await fetch('/api/knowledge/search', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.results && data.results.length > 0) {
+                    let html = '<div>';
+                    data.results.forEach((result, index) => {
+                        const score = (result.score * 100).toFixed(1);
+                        html += `
+                            <div style="margin-bottom: 15px; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                                <strong>📄 ${result.metadata?.filename || 'Documento ' + (index+1)}</strong>
+                                <div style="margin: 10px 0; color: #555;">${result.text?.substring(0, 300)}...</div>
+                                <span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                                    Relevância: ${score}%
+                                </span>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    resultsContent.innerHTML = html;
+                } else {
+                    resultsContent.innerHTML = '😔 Nenhum resultado encontrado. Tente outras palavras-chave.';
+                }
+            } catch (error) {
+                console.error('Erro na busca:', error);
+                resultsContent.innerHTML = '❌ Erro ao buscar. Tente novamente.';
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '🔍 Buscar';
+            }
+        }
+
+        async function loadKnowledgeDocuments() {
+            try {
+                const response = await fetch('/api/knowledge/list', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`
+                    }
+                });
+                
+                const data = await response.json();
+                const container = document.getElementById('knowledge-documents-list');
+                
+                if (data.success && data.documents && data.documents.length > 0) {
+                    container.innerHTML = data.documents.map(doc => `
+                        <div class="doc-card" onclick="document.getElementById('knowledge-search-input').value='${doc.filename}'; searchKnowledgeBase();">
+                            <div class="doc-icon">${getDocIcon(doc.category)}</div>
+                            <div class="doc-name">${doc.filename}</div>
+                            <div class="doc-date">${formatCategory(doc.category)}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div style="grid-column: 1/-1; text-align: center; color: #999;">
+                            <p>Nenhum documento na base ainda.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar documentos:', error);
+            }
+        }
+
+        function getDocIcon(category) {
+            const icons = {
+                'lei_federal': '⚖️',
+                'modelo_documento': '📄',
+                'norma_abnt': '📐',
+                'jurisprudencia': '🏛️'
+            };
+            return icons[category] || '📁';
+        }
+
+        function formatCategory(category) {
+            const names = {
+                'lei_federal': 'Lei Federal',
+                'modelo_documento': 'Modelo',
+                'norma_abnt': 'Norma ABNT',
+                'jurisprudencia': 'Jurisprudência'
+            };
+            return names[category] || category;
+        }
+
         function formatSearchResponse(text) {
             return text
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -968,7 +1070,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 .replace(/•/g, '&bull;');
         }
 
-        // Handle Enter key na busca
         function handleSearchKeyPress(event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
@@ -976,7 +1077,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         }
 
-        // Switch tabs
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -990,24 +1090,22 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             } else if (tab === 'knowledge') {
                 document.querySelectorAll('.tab')[2].classList.add('active');
                 document.getElementById('knowledge-tab').classList.add('active');
+                loadKnowledgeDocuments(); // Carregar documentos ao abrir aba
             }
         }
 
-        // Add Condo Modal
         function openAddCondoModal() {
             document.getElementById('add-condo-modal').classList.add('active');
         }
 
         function closeAddCondoModal() {
             document.getElementById('add-condo-modal').classList.remove('active');
-            // Clear form
             document.getElementById('condo-name').value = '';
             document.getElementById('condo-address').value = '';
             document.getElementById('condo-units').value = '';
             document.getElementById('condo-cnpj').value = '';
         }
 
-        // Save condominium
         async function saveCondominium() {
             const name = document.getElementById('condo-name').value;
             const address = document.getElementById('condo-address').value;
@@ -1042,7 +1140,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         }
 
-        // Chat functions
         async function sendMessage() {
             if (isSending) return;
             
@@ -1052,11 +1149,9 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             
             if (!message) return;
             
-            // Desabilitar envio
             isSending = true;
             sendBtn.disabled = true;
             
-            // Add user message
             const messagesDiv = document.getElementById('chat-messages');
             messagesDiv.innerHTML += `
                 <div class="message">
@@ -1068,7 +1163,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 </div>
             `;
             
-            // Add typing indicator
             const typingId = 'typing-' + Date.now();
             messagesDiv.innerHTML += `
                 <div class="message" id="${typingId}">
@@ -1084,13 +1178,9 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 </div>
             `;
             
-            // Clear input
             input.value = '';
-            
-            // Scroll to bottom
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
-            // Enviar para API
             try {
                 const response = await fetch('/api/alexandra', {
                     method: 'POST',
@@ -1104,7 +1194,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                     })
                 });
                 
-                // Remove typing indicator
                 document.getElementById(typingId).remove();
                 
                 if (response.ok) {
@@ -1118,8 +1207,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                             </div>
                         </div>
                     `;
-                    
-                    // Atualizar contador de consultas
                     await loadUserData();
                 } else {
                     const error = await response.json();
@@ -1138,7 +1225,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
             } catch (error) {
-                // Remove typing indicator
                 const typing = document.getElementById(typingId);
                 if (typing) typing.remove();
                 
@@ -1156,13 +1242,11 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 `;
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
             } finally {
-                // Reabilitar envio
                 isSending = false;
                 sendBtn.disabled = false;
             }
         }
 
-        // File upload
         async function handleFileUpload(input) {
             const file = input.files[0];
             if (!file) return;
@@ -1177,7 +1261,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             formData.append('file', file);
             formData.append('condominium_id', currentCondo);
             
-            // Mostrar loading
             const uploadArea = document.querySelector('.upload-area');
             const originalContent = uploadArea.innerHTML;
             uploadArea.innerHTML = '<div class="upload-icon">⏳</div><div class="upload-text">Processando documento...</div>';
@@ -1204,13 +1287,11 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 console.error('Erro no upload:', error);
                 alert('❌ Erro ao enviar arquivo. Tente novamente.');
             } finally {
-                // Restaurar área de upload
                 uploadArea.innerHTML = originalContent;
                 input.value = '';
             }
         }
 
-        // Utility functions
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -1223,17 +1304,14 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                 .replace(/\n/g, '<br>');
         }
 
-        // Logout
         async function logout() {
             await fetch('/api/logout', {method: 'POST'});
             localStorage.clear();
             window.location.href = '/';
         }
 
-        // Initialize on load
         document.addEventListener('DOMContentLoaded', init);
 
-        // Handle Enter key in chat
         document.getElementById('chat-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -1241,7 +1319,6 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
             }
         });
 
-        // Handle condo change
         document.getElementById('condo-select').addEventListener('change', async (e) => {
             currentCondo = e.target.value;
             console.log('Condomínio selecionado:', currentCondo);
