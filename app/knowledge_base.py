@@ -53,7 +53,7 @@ async def upload_knowledge_document(
         
         # Processar com RAG no namespace especial
         rag = get_or_create_rag()
-        result = result = await rag.process_pdf_content(
+        rresult = rag.process_pdf_content(
             pdf_content=content,
             sindico_id=0,  # 0 = Base de Conhecimento Geral
             condo_id=0,    # 0 = Base de Conhecimento Geral
