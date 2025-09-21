@@ -434,7 +434,7 @@ class RAGSystem:
 
             for match in results.matches:
                 # limiar simples — mantenho o 0.7 do original
-                if getattr(match, "score", 0) > 0.7:
+                if getattr(match, "score", 0) > 0.35:
                     md = getattr(match, "metadata", {}) or {}
                     relevant_chunks.append(md.get("text", ""))
                     sources.add(md.get("filename", md.get("title", "Documento")))
