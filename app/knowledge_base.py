@@ -199,18 +199,21 @@ async def search_knowledge_base(
         # Formatar resultados
         formatted_results = []
         
-        if search_results and 'matches' in search_results:
-            for match in search_results['matches']:
-                formatted_results.append({
-                    'id': match.get('id', ''),
-                    'score': match.get('score', 0),
-                    'text': match.get('metadata', {}).get('text', ''),
-                    'metadata': {
-                        'filename': match.get('metadata', {}).get('filename', 'Documento'),
-                        'category': match.get('metadata', {}).get('category', 'geral'),
-                        'chunk_index': match.get('metadata', {}).get('chunk_index', 0)
-                    }
-                })
+        if search_results and search_results.get('success'):
+            # O método query retorna a resposta já processada
+            formatted_results.append({
+                'id': 'result_0',
+                'score': search_results.get('confidence', 1.0),
+                'text': search_results.get('answer', ''),
+                'metadata': {
+                    'filename': ', '.join(search_results.get('sources', ['Base de Conhecimento'])),
+                    'category': 'lei_federal',
+                    'chunk_index': 0
+                }
+            })
+        elif search_results:
+            # Se não teve sucesso mas retornou algo
+            print(f"DEBUG: Query sem sucesso: {search_results}")
         
         print(f"DEBUG SEARCH: Encontrados {len(formatted_results)} resultados")
         
