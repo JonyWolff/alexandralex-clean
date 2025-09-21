@@ -190,9 +190,10 @@ async def search_knowledge_base(
         print(f"DEBUG SEARCH: Buscando '{query}' na base de conhecimento")
         
         # Usar query_documents em vez de search_documents
-        search_results = rag.search_documents(
-    query=query,
-    namespace="user_0_cond_0"
+        search_results = rag.query(
+    question=query,
+    sindico_id=0,
+    condo_id=0
 )
         
         # Formatar resultados
