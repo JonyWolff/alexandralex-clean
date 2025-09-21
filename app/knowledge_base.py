@@ -56,7 +56,7 @@ async def upload_knowledge_document(
             pdf_content=content,
             sindico_id=0,  # 0 = Base de Conhecimento Geral
             condo_id=0,    # 0 = Base de Conhecimento Geral
-            doc_id=f"kb_{category}_{file.filename}"
+            doc_id=f"kb_{category}_{int(datetime.now().timestamp())}"
         )
         
         # Salvar no banco
