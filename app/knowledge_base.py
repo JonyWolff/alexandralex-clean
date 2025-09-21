@@ -93,7 +93,6 @@ async def upload_knowledge_document(
             filename=file.filename,
             category=category,
             description=description,
-            processed=True,
             chunks_count=process_result.get('chunks_created', 0)
         )
         db.add(kb_doc)
