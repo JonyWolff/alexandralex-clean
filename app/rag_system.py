@@ -434,7 +434,8 @@ class RAGSystem:
 
             for match in results.matches:
                 # limiar simples — mantenho o 0.7 do original
-                if getattr(match, "score", 0) > 0.35:
+               threshold = 0.35 if namespace == "user_0_cond_0" else 0.7
+if getattr(match, "score", 0) > threshold:
                     md = getattr(match, "metadata", {}) or {}
                     relevant_chunks.append(md.get("text", ""))
                     sources.add(md.get("filename", md.get("title", "Documento")))
@@ -448,7 +449,7 @@ class RAGSystem:
                 }
 
             # Gerar resposta usando GPT
-            context = "\n\n".join(relevant_chunks[:3])
+            context = "\n\n".join(relevant_chunks[:5])
 
             prompt = f"""Baseado nos seguintes trechos dos documentos do condomínio:
 
@@ -465,7 +466,7 @@ Responda de forma clara e direta, citando as informações dos documentos quando
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=1000
             )
 
             answer = response.choices[0].message.content
