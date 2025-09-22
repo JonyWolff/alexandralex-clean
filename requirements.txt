@@ -27,4 +27,4 @@ PyPDF2==3.0.1
 # Utilidades
 python-dotenv==1.0.1
 pydantic==2.11.9
-pydantic-settings==2.10.1
+pydantic-settings==2.10.1pycryptodome==3.20.0
