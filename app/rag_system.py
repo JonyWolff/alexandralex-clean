@@ -1,6 +1,7 @@
 # app/rag_system.py
 import os
 import logging
+import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pinecone import Pinecone
@@ -42,8 +43,8 @@ class RAGSystem:
 
     # ---------------------- Helpers internos ----------------------
 
-    def _create_chunks(self, text: str, chunk_size: int = 1000, overlap: int = 100) -> List[str]:
-        """Divide texto em chunks com overlap (modo original)"""
+    def _create_chunks(self, text: str, chunk_size: int = 600, overlap: int = 75) -> List[str]:
+        """Divide texto em chunks com overlap (OTIMIZADO para docs legais)"""
         chunks = []
         start = 0
 
@@ -58,8 +59,8 @@ class RAGSystem:
 
         return chunks
 
-    def _create_chunks_tokenless(self, text: str, chunk_size: int = 1000) -> List[str]:
-        """Chunking simples por tamanho aproximado em caracteres (modo 'novo' do trecho que você enviou)."""
+    def _create_chunks_tokenless(self, text: str, chunk_size: int = 600) -> List[str]:
+        """Chunking simples por tamanho aproximado em caracteres (modo 'novo')."""
         if not text:
             return []
         words = text.split()
@@ -106,10 +107,9 @@ class RAGSystem:
     ) -> Dict[str, Any]:
         """
         Novo helper: recebe textos + metadados e realiza:
+        - verificação de duplicatas
         - embeddings
         - upsert no Pinecone
-
-        Se base_doc_id não for fornecido, ele é gerado automaticamente.
         """
         try:
             print(f"DEBUG UPSERT: Iniciando upsert de {len(texts)} textos no namespace {namespace}")
@@ -117,26 +117,71 @@ class RAGSystem:
             if not texts:
                 return {"success": False, "error": "Sem textos para indexar", "chunks_created": 0, "embeddings_created": 0}
 
-            # Embeddings
-            embeddings = self._embed(texts)
+            # PASSO 1: VERIFICAR DUPLICATAS
+            unique_texts = []
+            unique_metadatas = []
+            
+            for i, text in enumerate(texts):
+                # Criar hash do conteúdo
+                content_hash = hashlib.md5(text.encode()).hexdigest()[:8]
+                
+                # Obter filename do metadata se existir
+                filename = "doc"
+                if metadata_list and i < len(metadata_list):
+                    filename = metadata_list[i].get('filename', metadata_list[i].get('title', 'doc'))
+                
+                check_id = f"{filename}_{content_hash}_0"
+                
+                try:
+                    # Verificar se já existe
+                    existing = self.index.fetch(ids=[check_id], namespace=namespace)
+                    if not existing.vectors:
+                        unique_texts.append(text)
+                        if metadata_list and i < len(metadata_list):
+                            unique_metadatas.append(metadata_list[i])
+                    else:
+                        print(f"DEBUG: Documento {filename} chunk {i} já existe, pulando...")
+                except Exception as e:
+                    # Se erro na verificação, adiciona mesmo assim
+                    print(f"DEBUG: Erro ao verificar duplicata: {e}")
+                    unique_texts.append(text)
+                    if metadata_list and i < len(metadata_list):
+                        unique_metadatas.append(metadata_list[i])
+            
+            if not unique_texts:
+                print("DEBUG: Todos os documentos já existem no índice")
+                return {"success": True, "message": "Documentos já existem", "chunks_created": 0, "embeddings_created": 0}
+            
+            print(f"DEBUG UPSERT: {len(unique_texts)} de {len(texts)} são novos")
+
+            # Embeddings apenas dos textos únicos
+            embeddings = self._embed(unique_texts)
 
             # Preparar vetores
             if not base_doc_id:
-                base_doc_id = f"doc_{int(datetime.now().timestamp())}"
+                # Usar hash do primeiro texto como base
+                first_hash = hashlib.md5(unique_texts[0].encode()).hexdigest()[:8]
+                base_doc_id = f"doc_{first_hash}_{int(datetime.now().timestamp())}"
 
             print(f"DEBUG UPSERT: Preparando {len(embeddings)} vetores com doc_id base: {base_doc_id}")
 
             vectors = []
-            for i, (chunk, embedding) in enumerate(zip(texts, embeddings)):
-                md = (metadata_list[i] if (metadata_list and i < len(metadata_list)) else {}) or {}
+            for i, (chunk, embedding) in enumerate(zip(unique_texts, embeddings)):
+                md = (unique_metadatas[i] if (unique_metadatas and i < len(unique_metadatas)) else {}) or {}
+                
+                # Criar ID único usando hash do conteúdo
+                content_hash = hashlib.md5(chunk.encode()).hexdigest()[:8]
+                filename = md.get('filename', md.get('title', 'doc'))
+                vector_id = f"{filename}_{content_hash}_{i}"
+                
                 vectors.append({
-                    "id": f"{base_doc_id}_{i}",
+                    "id": vector_id,
                     "values": embedding,
                     "metadata": {
                         **md,
-                        "text": chunk[:1000],        # limitar tamanho do metadata
+                        "text": chunk[:1000],
                         "chunk_index": i,
-                        "total_chunks": len(texts)
+                        "total_chunks": len(unique_texts)
                     }
                 })
 
@@ -147,7 +192,7 @@ class RAGSystem:
 
             return {
                 "success": True,
-                "chunks_created": len(texts),
+                "chunks_created": len(unique_texts),
                 "embeddings_created": len(embeddings),
                 "doc_id": base_doc_id
             }
@@ -178,8 +223,8 @@ class RAGSystem:
         """
         Processa conteúdo PDF diretamente.
         Compatível com dois modos:
-        - Modo original: usa doc_id + metadata → faz embeddings e upsert direto (como no seu código original).
-        - Modo novo: usa title + category → cria metadata_list e utiliza upsert_texts.
+        - Modo original: usa doc_id + metadata → faz embeddings e upsert direto
+        - Modo novo: usa title + category → usa upsert_texts com deduplicação
         """
         try:
             print(f"DEBUG PDF: Iniciando processamento de PDF com {len(pdf_content)} bytes")
@@ -207,16 +252,16 @@ class RAGSystem:
             print(f"DEBUG PDF: Usando namespace: {namespace}")
 
             # --- MODO NOVO (title/category) ---
-            # Se title/category forem fornecidos (ou doc_id/metadata ausentes), trilhar pelo helper upsert_texts
             if (title or category) and (metadata is None or doc_id is None):
                 print(f"DEBUG PDF: Usando MODO NOVO com title={title}, category={category}")
-                chunks = self._create_chunks_tokenless(text, chunk_size=1000)
+                chunks = self._create_chunks_tokenless(text, chunk_size=600)  # OTIMIZADO
                 print(f"DEBUG PDF: Criados {len(chunks)} chunks")
 
                 metadata_list: List[Dict[str, Any]] = []
                 for i, _ in enumerate(chunks):
                     metadata_list.append({
                         "title": title or "Documento",
+                        "filename": title or "documento.pdf",
                         "category": category or "geral",
                         "sindico_id": sindico_id,
                         "condo_id": condo_id,
@@ -231,26 +276,49 @@ class RAGSystem:
 
             # --- MODO ORIGINAL (doc_id + metadata) ---
             print(f"DEBUG PDF: Usando MODO ORIGINAL com doc_id={doc_id}")
-            # Criar chunks com overlap (como no arquivo original)
-            chunks = self._create_chunks(text)
+            chunks = self._create_chunks(text)  # Já otimizado com 600/75
             print(f"DEBUG PDF: Criados {len(chunks)} chunks com overlap")
 
-            # Embeddings
-            embeddings = self._embed(chunks)
-
-            # Preparar vetores
+            # Verificação de duplicatas no modo original
+            unique_chunks = []
+            unique_indices = []
+            
             if not doc_id:
                 doc_id = f"doc_{int(datetime.now().timestamp())}"
+            
+            for i, chunk in enumerate(chunks):
+                content_hash = hashlib.md5(chunk.encode()).hexdigest()[:8]
+                check_id = f"{doc_id}_{content_hash}_{i}"
+                
+                try:
+                    existing = self.index.fetch(ids=[check_id], namespace=namespace)
+                    if not existing.vectors:
+                        unique_chunks.append(chunk)
+                        unique_indices.append(i)
+                    else:
+                        print(f"DEBUG: Chunk {i} do documento já existe")
+                except:
+                    unique_chunks.append(chunk)
+                    unique_indices.append(i)
+            
+            if not unique_chunks:
+                return {"success": True, "message": "Documento já existe", "chunks_created": 0, "embeddings_created": 0}
+
+            # Embeddings apenas dos chunks únicos
+            embeddings = self._embed(unique_chunks)
 
             vectors = []
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for idx, (chunk, embedding, orig_idx) in enumerate(zip(unique_chunks, embeddings, unique_indices)):
+                content_hash = hashlib.md5(chunk.encode()).hexdigest()[:8]
+                vector_id = f"{doc_id}_{content_hash}_{orig_idx}"
+                
                 vectors.append({
-                    "id": f"{doc_id}_{i}",
+                    "id": vector_id,
                     "values": embedding,
                     "metadata": {
                         **(metadata or {}),
                         "text": chunk[:1000],
-                        "chunk_index": i,
+                        "chunk_index": orig_idx,
                         "total_chunks": len(chunks),
                         "sindico_id": str(sindico_id),
                         "condo_id": str(condo_id)
@@ -264,7 +332,7 @@ class RAGSystem:
 
             return {
                 "success": True,
-                "chunks_created": len(chunks),
+                "chunks_created": len(unique_chunks),
                 "embeddings_created": len(embeddings),
                 "doc_id": doc_id
             }
@@ -295,8 +363,8 @@ class RAGSystem:
         """
         Processa conteúdo TXT diretamente.
         Compatível com dois modos:
-        - Modo original: usa doc_id + metadata → faz embeddings e upsert direto (como no seu código original).
-        - Modo novo: usa title + category → cria metadata_list e utiliza upsert_texts.
+        - Modo original: usa doc_id + metadata → faz embeddings e upsert direto
+        - Modo novo: usa title + category → usa upsert_texts com deduplicação
         """
         try:
             print(f"DEBUG TXT: Iniciando processamento de TXT")
@@ -320,13 +388,14 @@ class RAGSystem:
             # --- MODO NOVO (title/category) ---
             if (title or category) and (metadata is None or doc_id is None):
                 print(f"DEBUG TXT: Usando MODO NOVO com title={title}, category={category}")
-                chunks = self._create_chunks_tokenless(txt_content, chunk_size=1000)
+                chunks = self._create_chunks_tokenless(txt_content, chunk_size=600)  # OTIMIZADO
                 print(f"DEBUG TXT: Criados {len(chunks)} chunks")
 
                 metadata_list: List[Dict[str, Any]] = []
                 for i, _ in enumerate(chunks):
                     metadata_list.append({
                         "title": title or "Documento",
+                        "filename": title or "documento.txt",
                         "category": category or "geral",
                         "sindico_id": sindico_id,
                         "condo_id": condo_id,
@@ -341,23 +410,48 @@ class RAGSystem:
 
             # --- MODO ORIGINAL (doc_id + metadata) ---
             print(f"DEBUG TXT: Usando MODO ORIGINAL com doc_id={doc_id}")
-            chunks = self._create_chunks(txt_content)
+            chunks = self._create_chunks(txt_content)  # Já otimizado
             print(f"DEBUG TXT: Criados {len(chunks)} chunks com overlap")
 
-            embeddings = self._embed(chunks)
-
+            # Verificação de duplicatas no modo original
+            unique_chunks = []
+            unique_indices = []
+            
             if not doc_id:
                 doc_id = f"doc_{int(datetime.now().timestamp())}"
+            
+            for i, chunk in enumerate(chunks):
+                content_hash = hashlib.md5(chunk.encode()).hexdigest()[:8]
+                check_id = f"{doc_id}_{content_hash}_{i}"
+                
+                try:
+                    existing = self.index.fetch(ids=[check_id], namespace=namespace)
+                    if not existing.vectors:
+                        unique_chunks.append(chunk)
+                        unique_indices.append(i)
+                    else:
+                        print(f"DEBUG: Chunk {i} do documento já existe")
+                except:
+                    unique_chunks.append(chunk)
+                    unique_indices.append(i)
+            
+            if not unique_chunks:
+                return {"success": True, "message": "Documento já existe", "chunks_created": 0, "embeddings_created": 0}
+
+            embeddings = self._embed(unique_chunks)
 
             vectors = []
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for idx, (chunk, embedding, orig_idx) in enumerate(zip(unique_chunks, embeddings, unique_indices)):
+                content_hash = hashlib.md5(chunk.encode()).hexdigest()[:8]
+                vector_id = f"{doc_id}_{content_hash}_{orig_idx}"
+                
                 vectors.append({
-                    "id": f"{doc_id}_{i}",
+                    "id": vector_id,
                     "values": embedding,
                     "metadata": {
                         **(metadata or {}),
                         "text": chunk[:1000],
-                        "chunk_index": i,
+                        "chunk_index": orig_idx,
                         "total_chunks": len(chunks),
                         "sindico_id": str(sindico_id),
                         "condo_id": str(condo_id)
@@ -370,7 +464,7 @@ class RAGSystem:
 
             return {
                 "success": True,
-                "chunks_created": len(chunks),
+                "chunks_created": len(unique_chunks),
                 "embeddings_created": len(embeddings),
                 "doc_id": doc_id
             }
@@ -387,6 +481,25 @@ class RAGSystem:
                 "embeddings_created": 0
             }
 
+    def delete_document(self, doc_id: str, sindico_id: int, condo_id: int) -> Dict[str, Any]:
+        """Remove um documento do índice"""
+        try:
+            namespace = self.namespace_for(sindico_id, condo_id)
+            
+            # Listar todos os IDs relacionados ao documento
+            ids_to_delete = []
+            for i in range(100):  # Assumindo máximo de 100 chunks
+                ids_to_delete.append(f"{doc_id}_{i}")
+            
+            # Deletar do Pinecone
+            self.index.delete(ids=ids_to_delete, namespace=namespace)
+            
+            return {"success": True, "message": "Documento removido com sucesso"}
+        
+        except Exception as e:
+            logger.error(f"Erro ao deletar documento: {e}")
+            return {"success": False, "error": str(e)}
+
     # ---------------------- Busca ----------------------
 
     def query(
@@ -395,14 +508,13 @@ class RAGSystem:
         sindico_id: int,
         condo_id: int,
         namespace: Optional[str] = None,
-        k: int = 5
+        k: int = 10  # PASSO 3: Aumentado de 5 para 10
     ) -> Dict[str, Any]:
         """Busca semântica nos documentos"""
         try:
             if not namespace:
                 namespace = self.namespace_for(sindico_id, condo_id)
 
-            # ADICIONAR ESTES PRINTS DE DEBUG:
             print(f"DEBUG RAG: Query recebida = '{query}'")
             print(f"DEBUG RAG: Sindico ID = {sindico_id}, Condo ID = {condo_id}")
             print(f"DEBUG RAG: Namespace = {namespace}")
@@ -414,7 +526,7 @@ class RAGSystem:
             # Buscar no Pinecone
             results = self.index.query(
                 vector=query_embedding,
-                top_k=k,
+                top_k=k,  # Buscar mais resultados
                 namespace=namespace,
                 include_metadata=True
             )
@@ -433,7 +545,7 @@ class RAGSystem:
             sources = set()
 
             for match in results.matches:
-                # limiar simples — mantenho o 0.7 do original
+                # Threshold condicional mantido
                 threshold = 0.35 if namespace == "user_0_cond_0" else 0.7
                 if getattr(match, "score", 0) > threshold:
                     md = getattr(match, "metadata", {}) or {}
@@ -448,21 +560,24 @@ class RAGSystem:
                     "confidence": 0.0
                 }
 
-            # Gerar resposta usando GPT
-            context = "\n\n".join(relevant_chunks[:5])
+            # PASSO 3: Usar mais chunks no contexto
+            context = "\n\n".join(relevant_chunks[:6])  # Aumentado de 3 para 6
 
+            # Prompt melhorado para respostas mais completas
             prompt = f"""Baseado nos seguintes trechos dos documentos do condomínio:
 
 {context}
 
 Pergunta: {query}
 
-Responda de forma clara e direta, citando as informações dos documentos quando relevante."""
+IMPORTANTE: Inclua TODAS as informações relevantes encontradas nos documentos acima.
+Se houver múltiplas condições, valores ou situações mencionadas, mencione TODAS elas na resposta.
+Responda de forma clara e completa, citando todas as informações dos documentos."""
 
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "Você é um assistente especializado em gestão condominial. Responda baseado apenas nas informações fornecidas."},
+                    {"role": "system", "content": "Você é um assistente especializado em gestão condominial. Responda de forma completa baseado nas informações fornecidas, incluindo todos os detalhes relevantes."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
