@@ -434,8 +434,8 @@ class RAGSystem:
 
             for match in results.matches:
                 # limiar simples — mantenho o 0.7 do original
-               threshold = 0.35 if namespace == "user_0_cond_0" else 0.7
-if getattr(match, "score", 0) > threshold:
+                threshold = 0.35 if namespace == "user_0_cond_0" else 0.7
+                if getattr(match, "score", 0) > threshold:
                     md = getattr(match, "metadata", {}) or {}
                     relevant_chunks.append(md.get("text", ""))
                     sources.add(md.get("filename", md.get("title", "Documento")))
