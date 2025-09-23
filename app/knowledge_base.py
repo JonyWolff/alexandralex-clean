@@ -172,13 +172,13 @@ async def list_knowledge_documents(
         print(f"Erro ao listar documentos: {e}")
         return {"success": False, "error": str(e), "documents": []}
 
-# ========== BUSCA MELHORADA ==========
+# ========== BUSCA MELHORADA - FUNÇÃO CORRIGIDA ==========
 @router.post("/search")
 async def search_knowledge_base(
     query: str = Form(...),
     condo_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)  # MUDANÇA: adicionar autenticação
+    current_user = Depends(get_current_user)
 ):
     """Busca na Base de Conhecimento"""
     
@@ -189,30 +189,43 @@ async def search_knowledge_base(
         
         print(f"DEBUG SEARCH: Buscando '{query}' na base de conhecimento")
         
-        # Usar query_documents em vez de search_documents
+        # Usar query com os novos parâmetros
         search_results = rag.query(
-    query=query,
-    sindico_id=0,
-    condo_id=0
-)
+            query=query,
+            sindico_id=0,
+            condo_id=0
+        )
         
         # Formatar resultados
         formatted_results = []
         
         if search_results and search_results.get('success'):
-            # O método query retorna a resposta já processada
+            # Pegar a resposta principal
+            answer = search_results.get('answer', '')
+            sources = search_results.get('sources', [])
+            confidence = search_results.get('confidence', 0.0)
+            chunks_used = search_results.get('chunks_used', 0)
+            query_type = search_results.get('query_type', 'general')
+            
+            # Criar resultado principal com a resposta completa
             formatted_results.append({
-                'id': 'result_0',
-                'score': search_results.get('confidence', 1.0),
-                'text': search_results.get('answer', ''),
+                'id': 'main_result',
+                'score': confidence,
+                'text': answer,  # Resposta COMPLETA do GPT
                 'metadata': {
-                    'filename': ', '.join(search_results.get('sources', ['Base de Conhecimento'])),
-                    'category': 'lei_federal',
-                    'chunk_index': 0
+                    'filename': ', '.join(sources) if sources else 'Base de Conhecimento',
+                    'category': 'resposta_consolidada',
+                    'chunks_used': chunks_used,
+                    'query_type': query_type
                 }
             })
-        elif search_results:
-            # Se não teve sucesso mas retornou algo
+            
+            print(f"DEBUG SEARCH: Resposta tem {len(answer)} caracteres")
+            print(f"DEBUG SEARCH: Usou {chunks_used} chunks")
+            print(f"DEBUG SEARCH: Tipo de query: {query_type}")
+            
+        else:
+            # Se não teve sucesso
             print(f"DEBUG: Query sem sucesso: {search_results}")
         
         print(f"DEBUG SEARCH: Encontrados {len(formatted_results)} resultados")
@@ -221,7 +234,9 @@ async def search_knowledge_base(
             "success": True,
             "query": query,
             "results": formatted_results,
-            "total_results": len(formatted_results)
+            "total_results": len(formatted_results),
+            "answer_length": len(answer) if 'answer' in locals() else 0,
+            "chunks_used": chunks_used if 'chunks_used' in locals() else 0
         }
         
     except Exception as e:
@@ -231,9 +246,9 @@ async def search_knowledge_base(
         
         return {
             "success": False,
-            "error": str(e),
             "query": query,
-            "results": []
+            "results": [],
+            "error": str(e)
         }
 
 # DEBUG - Endpoint para verificar status
