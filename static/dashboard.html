@@ -990,7 +990,7 @@ Posso responder sobre leis, convenções, atas ou qualquer questão condominial.
                         html += `
                             <div style="margin-bottom: 15px; padding: 15px; background: #f9f9f9; border-radius: 8px;">
                                 <strong>📄 ${result.metadata?.filename || 'Documento ' + (index+1)}</strong>
-                                <div style="margin: 10px 0; color: #555;">${result.text?.substring(0, 300)}...</div>
+                                <div style="margin: 10px 0; color: #555; white-space: pre-wrap;">${result.text}</div>
                                 <span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
                                     Relevância: ${score}%
                                 </span>
