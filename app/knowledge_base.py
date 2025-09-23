@@ -7,7 +7,7 @@ from datetime import datetime
 
 from .database import get_db
 from .auth import get_current_user
-from .models import KnowledgeBase
+from .models import KnowledgeBase, Document
 
 # Router com prefixo e tags
 router = APIRouter(
@@ -31,7 +31,6 @@ async def test_knowledge():
     return {"message": "✅ Base de Conhecimento funcionando!"}
 
 # ========== UPLOAD DE DOCUMENTO ==========
-# NÃO MUDEI NADA AQUI - MANTIVE EXATAMENTE COMO ESTÁ FUNCIONANDO
 @router.post("/upload")
 async def upload_knowledge_document(
     file: UploadFile = File(...),
@@ -145,7 +144,7 @@ async def upload_knowledge_document(
 @router.get("/list")
 async def list_knowledge_documents(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)  # MUDANÇA: adicionar autenticação
+    current_user = Depends(get_current_user)
 ):
     """Listar documentos da base de conhecimento"""
     try:
@@ -172,7 +171,7 @@ async def list_knowledge_documents(
         print(f"Erro ao listar documentos: {e}")
         return {"success": False, "error": str(e), "documents": []}
 
-# ========== BUSCA MELHORADA - FUNÇÃO CORRIGIDA ==========
+# ========== BUSCA MELHORADA COM DEBUG ==========
 @router.post("/search")
 async def search_knowledge_base(
     query: str = Form(...),
@@ -219,6 +218,13 @@ async def search_knowledge_base(
                     'query_type': query_type
                 }
             })
+            
+            # ===== DEBUG TEMPORÁRIO - REMOVER DEPOIS =====
+            print(f"DEBUG SEARCH: Tamanho do answer: {len(answer)}")
+            print(f"DEBUG SEARCH: Tamanho do text no resultado: {len(formatted_results[0]['text'])}")
+            print(f"DEBUG SEARCH: Primeiros 100 chars: {formatted_results[0]['text'][:100]}")
+            print(f"DEBUG SEARCH: Últimos 100 chars: {formatted_results[0]['text'][-100:]}")
+            # ===== FIM DO DEBUG TEMPORÁRIO =====
             
             print(f"DEBUG SEARCH: Resposta tem {len(answer)} caracteres")
             print(f"DEBUG SEARCH: Usou {chunks_used} chunks")
@@ -279,3 +285,32 @@ async def knowledge_base_status(db: Session = Depends(get_db)):
             "error": str(e),
             "status": "error"
         }
+
+# Adicione esta rota temporária no final do arquivo
+@router.get("/api/knowledge/clean-orphans")
+async def clean_orphan_records(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Remove registros órfãos do banco (onde Pinecone foi limpo)"""
+    try:
+        # Buscar e deletar documentos da base de conhecimento
+        orphan_docs = db.query(Document).filter_by(
+            condominium_id=0,
+            is_public=True
+        ).all()
+        
+        count = len(orphan_docs)
+        
+        for doc in orphan_docs:
+            db.delete(doc)
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Removidos {count} documentos órfãos do banco"
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
