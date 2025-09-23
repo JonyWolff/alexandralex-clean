@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload - Base de Conhecimento</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; }
+        .upload-box { border: 2px dashed #ccc; padding: 40px; text-align: center; }
+        select, input, button { margin: 10px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Upload para Base de Conhecimento</h1>
+    <div class="upload-box">
+        <form id="uploadForm">
+            <input type="file" id="file" accept=".pdf" required><br>
+            <select id="category">
+                <option value="lei_federal">Lei Federal</option>
+                <option value="norma_abnt">Norma ABNT</option>
+                <option value="jurisprudencia">Jurisprudência</option>
+                <option value="modelo_documento">Modelo de Documento</option>
+            </select><br>
+            <input type="text" id="description" placeholder="Descrição (opcional)"><br>
+            <button type="submit">Fazer Upload</button>
+        </form>
+        <div id="result"></div>
+    </div>
+    
+    <script>
+        // Adicionar JavaScript para fazer upload
+    </script>
+</body>
+</html>
+<script>
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    formData.append('file', document.getElementById('file').files[0]);
+    formData.append('category', document.getElementById('category').value);
+    formData.append('description', document.getElementById('description').value);
+    
+    document.getElementById('result').innerHTML = 'Enviando...';
+    
+    try {
+        const response = await fetch('/api/knowledge/upload', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('result').innerHTML = '<p style="color: green;">✅ ' + result.message + '</p>';
+            document.getElementById('uploadForm').reset();
+        } else {
+            document.getElementById('result').innerHTML = '<p style="color: red;">❌ Erro: ' + (result.error || result.detail) + '</p>';
+        }
+    } catch (error) {
+        document.getElementById('result').innerHTML = '<p style="color: red;">❌ Erro: ' + error + '</p>';
+    }
+});
+</script>
