@@ -20,9 +20,7 @@ logger.setLevel(logging.INFO)
 
 class RAGSystem:
     """Sistema RAG otimizado para documentos jurídicos/condominiais
-    Compatível com dois fluxos:
-    1) Fluxo antigo: process_*_content(pdf/txt) com doc_id + metadata → gera embeddings e faz upsert direto
-    2) Fluxo novo: process_*_content(pdf/txt) com title + category → usa upsert_texts
+    Com busca dupla: condomínio específico + base de conhecimento geral
     """
 
     def __init__(self):
@@ -36,7 +34,7 @@ class RAGSystem:
         self.index_name = "alexandralex"
         self.index = self.pc.Index(self.index_name)
         
-        # Modelo de embeddings (mantido como no original, para compatibilidade)
+        # Modelo de embeddings
         self.embedding_model = "text-embedding-ada-002"
 
     @staticmethod
@@ -44,11 +42,12 @@ class RAGSystem:
         """Gera namespace único por síndico/condomínio"""
         return f"user_{sindico_id}_cond_{condo_id}"
 
-    # ---------------------- Helpers internos ORIGINAIS (preservados) ----------------------
+    # ---------------------- Helpers internos OTIMIZADOS ----------------------
 
-    def _create_chunks(self, text: str, chunk_size: int = 600, overlap: int = 75) -> List[str]:
-        """Divide texto em chunks com overlap (OTIMIZADO para docs legais)
-        Mantido para compatibilidade com modo original"""
+    def _create_chunks(self, text: str, chunk_size: int = 800, overlap: int = 200) -> List[str]:
+        """Divide texto em chunks com overlap OTIMIZADO
+        MODIFICADO: chunk_size=800, overlap=200 (era 600/75)
+        """
         chunks = []
         start = 0
 
@@ -63,9 +62,10 @@ class RAGSystem:
 
         return chunks
 
-    def _create_chunks_tokenless(self, text: str, chunk_size: int = 600) -> List[str]:
-        """Chunking simples por tamanho aproximado em caracteres (modo 'novo').
-        Mantido para compatibilidade"""
+    def _create_chunks_tokenless(self, text: str, chunk_size: int = 800) -> List[str]:
+        """Chunking simples por tamanho OTIMIZADO
+        MODIFICADO: chunk_size=800 (era 600)
+        """
         if not text:
             return []
         words = text.split()
@@ -83,45 +83,42 @@ class RAGSystem:
 
         return chunks
 
-    # ---------------------- NOVO: Chunking Estruturado (adicional) ----------------------
+    # ---------------------- Chunking Estruturado ----------------------
     
     def _create_structured_chunks(self, text: str, doc_type: str = "general") -> List[Dict[str, Any]]:
         """
-        NOVO: Cria chunks preservando estrutura legal/documental
-        Retorna lista de dicts com chunk text e metadata
+        Cria chunks preservando estrutura legal/documental
+        OTIMIZADO: chunks de 800-1200 caracteres
         """
         chunks_with_metadata = []
         
         # Padrões para detectar estruturas legais
         article_pattern = r'(?=(?:Art(?:igo)?\.?\s*\d+|CAPÍTULO\s+[IVXLCDM]+|SEÇÃO\s+[IVXLCDM]+|§\s*\d+º?))'
         
-        # Para documentos jurídicos, preservar artigos
         if doc_type in ["convenção", "regimento", "estatuto"]:
-            # Dividir por artigos/capítulos
             sections = re.split(article_pattern, text)
             
             for i, section in enumerate(sections):
                 if not section.strip():
                     continue
                     
-                # Extrair número do artigo se existir
                 article_match = re.match(r'Art(?:igo)?\.?\s*(\d+)', section)
                 article_num = article_match.group(1) if article_match else None
                 
-                # Se a seção for muito grande, dividir por parágrafos
-                if len(section) > 1500:
-                    paragraphs = section.split('\n\n')
-                    for j, para in enumerate(paragraphs):
-                        if len(para.strip()) > 50:  # Ignorar parágrafos muito pequenos
-                            chunks_with_metadata.append({
-                                'text': para.strip(),
-                                'metadata': {
-                                    'chunk_type': 'paragraph',
-                                    'article_num': str(article_num) if article_num else "0",
-                                    'paragraph_num': j,
-                                    'doc_type': doc_type
-                                }
-                            })
+                # Se a seção for muito grande, dividir em chunks de 800 chars
+                if len(section) > 1200:
+                    # Usar chunking otimizado para seções grandes
+                    sub_chunks = self._create_chunks(section, chunk_size=800, overlap=200)
+                    for j, sub_chunk in enumerate(sub_chunks):
+                        chunks_with_metadata.append({
+                            'text': sub_chunk,
+                            'metadata': {
+                                'chunk_type': 'paragraph',
+                                'article_num': str(article_num) if article_num else "0",
+                                'paragraph_num': j,
+                                'doc_type': doc_type
+                            }
+                        })
                 else:
                     chunks_with_metadata.append({
                         'text': section.strip(),
@@ -131,11 +128,9 @@ class RAGSystem:
                             'doc_type': doc_type
                         }
                     })
-        
-        # Para atas e documentos gerais - usar chunking otimizado
         else:
-            # Usar o método original otimizado
-            simple_chunks = self._create_chunks(text, chunk_size=1000, overlap=150)
+            # Para documentos gerais - usar chunking otimizado
+            simple_chunks = self._create_chunks(text, chunk_size=800, overlap=200)
             for i, chunk in enumerate(simple_chunks):
                 chunks_with_metadata.append({
                     'text': chunk,
@@ -149,8 +144,8 @@ class RAGSystem:
         return chunks_with_metadata
 
     def _detect_document_type(self, text: str, filename: str) -> str:
-        """NOVO: Detecta o tipo de documento para otimizar chunking"""
-        text_lower = text.lower()[:1000]  # Analisar só início
+        """Detecta o tipo de documento para otimizar chunking"""
+        text_lower = text.lower()[:1000]
         filename_lower = filename.lower()
         
         if any(term in text_lower or term in filename_lower for term in ['convenção', 'convencao']):
@@ -161,13 +156,19 @@ class RAGSystem:
             return 'ata'
         elif any(term in text_lower or term in filename_lower for term in ['estatuto']):
             return 'estatuto'
+        elif any(term in text_lower or term in filename_lower for term in ['piscina']):
+            return 'regras_piscina'
+        elif any(term in text_lower or term in filename_lower for term in ['churrasqueira']):
+            return 'regras_churrasqueira'
+        elif any(term in text_lower or term in filename_lower for term in ['bicicletário', 'bicicletario']):
+            return 'regras_bicicletario'
         else:
             return 'general'
 
-    # ---------------------- NOVO: Classificação e Expansão de Query ----------------------
+    # ---------------------- Classificação e Expansão de Query ----------------------
     
     def _classify_query(self, query: str) -> Dict[str, Any]:
-        """NOVO: Classifica o tipo de query para otimizar busca"""
+        """Classifica o tipo de query para otimizar busca"""
         query_lower = query.lower()
         
         if re.search(r'\bart(?:igo)?\.?\s*\d+|\blei\b|\bdecreto\b|\bnorma\b', query_lower):
@@ -184,7 +185,7 @@ class RAGSystem:
             return {'type': 'general', 'balanced': True}
 
     def _expand_query(self, query: str, classification: Dict) -> List[str]:
-        """NOVO: Expande query em múltiplas variações"""
+        """Expande query em múltiplas variações para melhor recall"""
         queries = [query]  # Original sempre incluída
         
         # Adicionar variações baseadas no tipo
@@ -195,26 +196,30 @@ class RAGSystem:
         elif classification['type'] == 'interpretative':
             queries.append(f"regras sobre {query}")
             queries.append(f"normas de {query}")
+            queries.append(f"regulamento {query}")
         
-        # Sinônimos condominiais
+        # Sinônimos condominiais expandidos
         synonyms = {
-            'animal': ['pet', 'bicho', 'cachorro', 'gato'],
-            'barulho': ['ruído', 'som', 'silêncio'],
-            'festa': ['evento', 'comemoração', 'reunião'],
-            'multa': ['penalidade', 'sanção', 'punição']
+            'animal': ['pet', 'bicho', 'cachorro', 'gato', 'animais de estimação'],
+            'barulho': ['ruído', 'som', 'silêncio', 'ruido', 'barulho excessivo'],
+            'festa': ['evento', 'comemoração', 'reunião', 'festividade'],
+            'multa': ['penalidade', 'sanção', 'punição', 'advertência'],
+            'piscina': ['área de lazer', 'área da piscina', 'piscinas'],
+            'churrasqueira': ['área de churrasqueira', 'churrasqueiras', 'churrasco'],
+            'bicicletário': ['bicicletario', 'bicicleta', 'bicicletas']
         }
         
         for term, syns in synonyms.items():
             if term in query.lower():
-                for syn in syns[:2]:
+                for syn in syns[:3]:  # Até 3 sinônimos
                     queries.append(query.lower().replace(term, syn))
         
         return list(dict.fromkeys(queries))[:5]  # Max 5 queries únicas
 
-    # ---------------------- Embed com Debug (preservado) ----------------------
+    # ---------------------- Embed com Debug ----------------------
 
     def _embed(self, texts: List[str]) -> List[List[float]]:
-        """Gera embeddings usando OpenAI - PRESERVADO com debug"""
+        """Gera embeddings usando OpenAI"""
         print(f"DEBUG EMBED: Gerando embeddings para {len(texts)} textos")
         embeddings: List[List[float]] = []
         
@@ -233,7 +238,7 @@ class RAGSystem:
             
         return embeddings
 
-    # ---------------------- upsert_texts ORIGINAL (preservado) ----------------------
+    # ---------------------- upsert_texts ----------------------
 
     def upsert_texts(
         self,
@@ -242,19 +247,14 @@ class RAGSystem:
         metadata_list: Optional[List[Dict[str, Any]]] = None,
         base_doc_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        Helper PRESERVADO: recebe textos + metadados e realiza:
-        - verificação de duplicatas
-        - embeddings
-        - upsert no Pinecone
-        """
+        """Helper para fazer upsert de textos com deduplicação"""
         try:
             print(f"DEBUG UPSERT: Iniciando upsert de {len(texts)} textos no namespace {namespace}")
             
             if not texts:
                 return {"success": False, "error": "Sem textos para indexar", "chunks_created": 0, "embeddings_created": 0}
 
-            # VERIFICAR DUPLICATAS (preservado)
+            # Verificar duplicatas
             unique_texts = []
             unique_metadatas = []
             
@@ -311,6 +311,7 @@ class RAGSystem:
                     "metadata": {
                         **md,
                         "text": chunk[:1000],
+                        "full_text": chunk,  # IMPORTANTE: texto completo
                         "chunk_index": i,
                         "total_chunks": len(unique_texts)
                     }
@@ -350,17 +351,12 @@ class RAGSystem:
         title: Optional[str] = None,
         category: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        Processa PDF - PRESERVADO com melhorias opcionais
-        Compatível com dois modos:
-        - Modo original: usa doc_id + metadata
-        - Modo novo: usa title + category
-        """
+        """Processa PDF com chunking otimizado"""
         try:
             print(f"DEBUG PDF: Iniciando processamento de PDF com {len(pdf_content)} bytes")
             print(f"DEBUG PDF: Sindico ID: {sindico_id}, Condo ID: {condo_id}")
             
-            # Extrair texto do PDF (preservado)
+            # Extrair texto do PDF
             pdf_reader = PyPDF2.PdfReader(BytesIO(pdf_content))
             print(f"DEBUG PDF: PDF tem {len(pdf_reader.pages)} páginas")
             
@@ -381,21 +377,21 @@ class RAGSystem:
             namespace = self.namespace_for(sindico_id, condo_id)
             print(f"DEBUG PDF: Usando namespace: {namespace}")
 
-            # Detectar tipo de documento para chunking otimizado
+            # Detectar tipo de documento
             filename = metadata.get('filename', title or 'documento.pdf') if metadata else (title or 'documento.pdf')
             doc_type = self._detect_document_type(text, filename)
             print(f"DEBUG PDF: Tipo de documento detectado: {doc_type}")
 
-            # MODO NOVO (title/category) - preservado
+            # MODO NOVO (title/category)
             if (title or category) and (metadata is None or doc_id is None):
                 print(f"DEBUG PDF: Usando MODO NOVO com title={title}, category={category}")
                 
                 # Usar chunking estruturado quando disponível
-                if doc_type in ['convenção', 'regimento', 'estatuto']:
+                if doc_type in ['convenção', 'regimento', 'estatuto', 'regras_piscina', 'regras_churrasqueira', 'regras_bicicletario']:
                     chunks_data = self._create_structured_chunks(text, doc_type)
                     chunks = [cd['text'] for cd in chunks_data]
                 else:
-                    chunks = self._create_chunks(text, chunk_size=1000, overlap=150)  # Melhorado
+                    chunks = self._create_chunks(text, chunk_size=800, overlap=200)  # OTIMIZADO
                 
                 print(f"DEBUG PDF: Criados {len(chunks)} chunks")
 
@@ -423,21 +419,21 @@ class RAGSystem:
                     metadata_list=metadata_list
                 )
 
-            # MODO ORIGINAL (doc_id + metadata) - preservado e melhorado
+            # MODO ORIGINAL (doc_id + metadata)
             print(f"DEBUG PDF: Usando MODO ORIGINAL com doc_id={doc_id}")
             
             # Usar chunking estruturado quando apropriado
-            if doc_type in ['convenção', 'regimento', 'estatuto']:
+            if doc_type in ['convenção', 'regimento', 'estatuto', 'regras_piscina', 'regras_churrasqueira', 'regras_bicicletario']:
                 chunks_data = self._create_structured_chunks(text, doc_type)
                 chunks = [cd['text'] for cd in chunks_data]
                 chunks_metadata = [cd['metadata'] for cd in chunks_data]
             else:
-                chunks = self._create_chunks(text, chunk_size=1000, overlap=150)  # Melhorado
+                chunks = self._create_chunks(text, chunk_size=800, overlap=200)  # OTIMIZADO
                 chunks_metadata = [{'chunk_type': 'mixed', 'doc_type': doc_type}] * len(chunks)
             
             print(f"DEBUG PDF: Criados {len(chunks)} chunks")
 
-            # Verificação de duplicatas (preservado)
+            # Verificação de duplicatas
             unique_chunks = []
             unique_indices = []
             unique_chunk_metadata = []
@@ -477,9 +473,9 @@ class RAGSystem:
                 
                 vector_metadata = {
                     **(metadata or {}),
-                    **chunk_meta,  # Adicionar metadata estruturada
+                    **chunk_meta,
                     "text": chunk[:1000],
-                    "full_text": chunk,  # NOVO: texto completo para melhor resposta
+                    "full_text": chunk,  # IMPORTANTE: texto completo
                     "chunk_index": orig_idx,
                     "total_chunks": len(chunks),
                     "sindico_id": str(sindico_id),
@@ -496,7 +492,7 @@ class RAGSystem:
 
             # Upsert
             print(f"DEBUG PDF: Fazendo upsert de {len(vectors)} vetores...")
-            batch_size = 50  # Otimizado
+            batch_size = 50
             for i in range(0, len(vectors), batch_size):
                 self.index.upsert(vectors=vectors[i:i+batch_size], namespace=namespace)
             print(f"DEBUG PDF: Upsert concluído!")
@@ -506,7 +502,7 @@ class RAGSystem:
                 "chunks_created": len(unique_chunks),
                 "embeddings_created": len(embeddings),
                 "doc_id": doc_id,
-                "doc_type": doc_type  # NOVO
+                "doc_type": doc_type
             }
 
         except Exception as e:
@@ -520,7 +516,7 @@ class RAGSystem:
                 "embeddings_created": 0
             }
 
-    # ---------------------- Process TXT (similar ao PDF) ----------------------
+    # ---------------------- Process TXT ----------------------
 
     def process_txt_content(
         self,
@@ -532,12 +528,12 @@ class RAGSystem:
         title: Optional[str] = None,
         category: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Processa TXT - PRESERVADO com melhorias"""
+        """Processa TXT com chunking otimizado"""
         try:
             print(f"DEBUG TXT: Iniciando processamento de TXT")
             print(f"DEBUG TXT: Sindico ID: {sindico_id}, Condo ID: {condo_id}")
             
-            # Garantir str (preservado)
+            # Garantir str
             if isinstance(txt_content, bytes):
                 txt_content = txt_content.decode("utf-8", errors="ignore")
                 print(f"DEBUG TXT: Convertido de bytes para string")
@@ -561,11 +557,11 @@ class RAGSystem:
             if (title or category) and (metadata is None or doc_id is None):
                 print(f"DEBUG TXT: Usando MODO NOVO com title={title}, category={category}")
                 
-                if doc_type in ['convenção', 'regimento', 'estatuto']:
+                if doc_type in ['convenção', 'regimento', 'estatuto', 'regras_piscina', 'regras_churrasqueira', 'regras_bicicletario']:
                     chunks_data = self._create_structured_chunks(txt_content, doc_type)
                     chunks = [cd['text'] for cd in chunks_data]
                 else:
-                    chunks = self._create_chunks(txt_content, chunk_size=1000, overlap=150)
+                    chunks = self._create_chunks(txt_content, chunk_size=800, overlap=200)  # OTIMIZADO
                 
                 print(f"DEBUG TXT: Criados {len(chunks)} chunks")
 
@@ -592,15 +588,15 @@ class RAGSystem:
                     metadata_list=metadata_list
                 )
 
-            # MODO ORIGINAL (preservado com melhorias)
+            # MODO ORIGINAL
             print(f"DEBUG TXT: Usando MODO ORIGINAL com doc_id={doc_id}")
             
-            if doc_type in ['convenção', 'regimento', 'estatuto']:
+            if doc_type in ['convenção', 'regimento', 'estatuto', 'regras_piscina', 'regras_churrasqueira', 'regras_bicicletario']:
                 chunks_data = self._create_structured_chunks(txt_content, doc_type)
                 chunks = [cd['text'] for cd in chunks_data]
                 chunks_metadata = [cd['metadata'] for cd in chunks_data]
             else:
-                chunks = self._create_chunks(txt_content, chunk_size=1000, overlap=150)
+                chunks = self._create_chunks(txt_content, chunk_size=800, overlap=200)  # OTIMIZADO
                 chunks_metadata = [{'chunk_type': 'mixed', 'doc_type': doc_type}] * len(chunks)
             
             print(f"DEBUG TXT: Criados {len(chunks)} chunks")
@@ -646,7 +642,7 @@ class RAGSystem:
                     **(metadata or {}),
                     **chunk_meta,
                     "text": chunk[:1000],
-                    "full_text": chunk,
+                    "full_text": chunk,  # IMPORTANTE: texto completo
                     "chunk_index": orig_idx,
                     "total_chunks": len(chunks),
                     "sindico_id": str(sindico_id),
@@ -686,7 +682,7 @@ class RAGSystem:
                 "embeddings_created": 0
             }
 
-    # ---------------------- Query MELHORADA ----------------------
+    # ---------------------- Query MELHORADA COM BUSCA DUPLA ----------------------
 
     def query(
         self,
@@ -694,26 +690,33 @@ class RAGSystem:
         sindico_id: int,
         condo_id: int,
         namespace: Optional[str] = None,
-        k: int = 30  # AUMENTADO de 10 para 30
+        k: int = 12  # MODIFICADO: de 30 para 12 por namespace (total 24)
     ) -> Dict[str, Any]:
-        """Busca semântica MELHORADA com multi-query e classificação"""
+        """
+        Busca semântica MELHORADA com busca dupla:
+        1. Namespace do condomínio específico
+        2. Namespace da Base de Conhecimento (user_0_cond_0)
+        """
         try:
-            if not namespace:
-                namespace = self.namespace_for(sindico_id, condo_id)
+            # Namespace do condomínio
+            namespace_condo = namespace or self.namespace_for(sindico_id, condo_id)
+            # Namespace da Base de Conhecimento Geral
+            namespace_kb = "user_0_cond_0"
 
             print(f"DEBUG RAG: Query recebida = '{query}'")
             print(f"DEBUG RAG: Sindico ID = {sindico_id}, Condo ID = {condo_id}")
-            print(f"DEBUG RAG: Namespace = {namespace}")
+            print(f"DEBUG RAG: Namespace Condomínio = {namespace_condo}")
+            print(f"DEBUG RAG: Namespace Base Conhecimento = {namespace_kb}")
 
-            # NOVO: Classificar query
+            # Classificar query
             classification = self._classify_query(query)
             print(f"DEBUG RAG: Query classificada como: {classification['type']}")
 
-            # NOVO: Expandir query
+            # Expandir query
             expanded_queries = self._expand_query(query, classification)
             print(f"DEBUG RAG: Query expandida para {len(expanded_queries)} variações")
 
-            # Buscar com todas as variações
+            # BUSCA DUPLA: Condomínio + Base de Conhecimento
             all_matches = []
             seen_ids = set()
             
@@ -721,21 +724,37 @@ class RAGSystem:
                 # Criar embedding
                 query_embedding = self._embed([q])[0]
                 
-                # Buscar no Pinecone
-                results = self.index.query(
+                # 1. Buscar no namespace do condomínio
+                if namespace_condo != namespace_kb:  # Evitar busca dupla se for o mesmo
+                    results_condo = self.index.query(
+                        vector=query_embedding,
+                        top_k=k,
+                        namespace=namespace_condo,
+                        include_metadata=True
+                    )
+                    
+                    for match in results_condo.matches:
+                        if match.id not in seen_ids:
+                            seen_ids.add(match.id)
+                            # Adicionar boost para docs do condomínio (prioridade)
+                            match.score = match.score * 1.1  
+                            all_matches.append(match)
+                
+                # 2. Buscar na Base de Conhecimento Geral
+                results_kb = self.index.query(
                     vector=query_embedding,
                     top_k=k,
-                    namespace=namespace,
+                    namespace=namespace_kb,
                     include_metadata=True
                 )
                 
-                # Adicionar matches únicos
-                for match in results.matches:
+                for match in results_kb.matches:
                     if match.id not in seen_ids:
                         seen_ids.add(match.id)
                         all_matches.append(match)
 
             print(f"DEBUG RAG: Total de {len(all_matches)} matches únicos encontrados")
+            print(f"DEBUG RAG: {len([m for m in all_matches if 'user_0_cond_0' in str(m)])} da Base de Conhecimento")
 
             if not all_matches:
                 return {
@@ -745,8 +764,8 @@ class RAGSystem:
                     "confidence": 0.0
                 }
 
-            # Filtrar por score - PRESERVADO threshold condicional
-            threshold = 0.35 if namespace == "user_0_cond_0" else 0.5  # Reduzido de 0.7
+            # Filtrar por score com threshold adaptativo
+            threshold = 0.35  # Threshold baixo para capturar mais informação
             filtered_matches = [m for m in all_matches if getattr(m, "score", 0) > threshold]
             print(f"DEBUG RAG: {len(filtered_matches)} matches após filtro de score {threshold}")
 
@@ -767,6 +786,7 @@ class RAGSystem:
             # Preparar contexto
             context_chunks = []
             sources = set()
+            sources_detail = []
             
             for match in top_matches:
                 md = getattr(match, "metadata", {}) or {}
@@ -774,9 +794,16 @@ class RAGSystem:
                 chunk_text = md.get('full_text', md.get('text', ''))
                 if chunk_text:
                     context_chunks.append(chunk_text)
-                    sources.add(md.get("filename", md.get("title", "Documento")))
+                    source_name = md.get("filename", md.get("title", "Documento"))
+                    sources.add(source_name)
+                    
+                    # Identificar origem do documento
+                    if md.get('sindico_id') == '0' and md.get('condo_id') == '0':
+                        sources_detail.append(f"{source_name} (Base de Conhecimento)")
+                    else:
+                        sources_detail.append(f"{source_name} (Condomínio)")
 
-            # Gerar resposta com GPT MELHORADO
+            # Gerar resposta com GPT
             context = "\n\n---\n\n".join(context_chunks)
             
             # Prompt baseado na classificação
@@ -792,24 +819,30 @@ class RAGSystem:
                 system_prompt = """Você é a Dra. Alexandra, especialista em direito condominial.
                 Responda de forma profissional baseando-se nos documentos fornecidos."""
 
-            # ADICIONAR instrução de resposta completa
+            # Instrução de resposta completa
             system_prompt += """
             
             IMPORTANTE:
-            - Forneça uma resposta DETALHADA com no mínimo 300 palavras
+            - Forneça uma resposta COMPLETA e DETALHADA com no mínimo 2000 caracteres
             - Use TODAS as informações relevantes do contexto
-            - Cite artigos e trechos específicos quando aplicável
+            - Cite artigos e trechos específicos dos regulamentos
             - Se houver múltiplas regras, mencione TODAS
-            - Estruture a resposta de forma clara
+            - Estruture a resposta com:
+              * Introdução clara
+              * Lista numerada ou com bullets das principais regras
+              * Citação dos artigos relevantes
+              * Conclusão ou orientação final
+            - Use formatação markdown para melhor legibilidade
             """
 
-            prompt = f"""Baseado nos seguintes documentos do condomínio:
+            prompt = f"""Baseado nos seguintes documentos do condomínio e base de conhecimento geral:
 
 {context}
 
 Pergunta: {query}
 
-Responda de forma completa e detalhada, incluindo TODAS as informações relevantes."""
+Responda de forma completa e detalhada, incluindo TODAS as informações relevantes dos documentos.
+Se houver regras específicas sobre o tema, liste todas elas."""
 
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -818,18 +851,22 @@ Responda de forma completa e detalhada, incluindo TODAS as informações relevan
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                max_tokens=1500  # AUMENTADO
+                max_tokens=3000  # AUMENTADO para respostas completas
             )
 
             answer = response.choices[0].message.content
+
+            print(f"DEBUG RAG: Resposta gerada com {len(answer)} caracteres")
+            print(f"DEBUG RAG: Usou {len(context_chunks)} chunks de contexto")
 
             return {
                 "success": True,
                 "answer": answer,
                 "sources": list(sources)[:5],
+                "sources_detail": sources_detail[:5],  # NOVO: detalhes das fontes
                 "confidence": filtered_matches[0].score if filtered_matches else 0.0,
                 "chunks_used": len(context_chunks),
-                "query_type": classification['type']  # NOVO
+                "query_type": classification['type']
             }
 
         except Exception as e:
@@ -843,10 +880,10 @@ Responda de forma completa e detalhada, incluindo TODAS as informações relevan
                 "confidence": 0.0
             }
 
-    # ---------------------- Delete (preservado) ----------------------
+    # ---------------------- Delete ----------------------
 
     def delete_document(self, doc_id: str, sindico_id: int, condo_id: int) -> Dict[str, Any]:
-        """Remove um documento do índice - PRESERVADO"""
+        """Remove um documento do índice"""
         try:
             namespace = self.namespace_for(sindico_id, condo_id)
             
@@ -865,7 +902,7 @@ Responda de forma completa e detalhada, incluindo TODAS as informações relevan
             return {"success": False, "error": str(e)}
 
 
-# ---------------------- Singleton (preservado) ----------------------
+# ---------------------- Singleton ----------------------
 
 _rag_instance: Optional[RAGSystem] = None
 
