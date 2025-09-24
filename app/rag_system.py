@@ -834,7 +834,28 @@ class RAGSystem:
               * Conclusão ou orientação final
             - Use formatação markdown para melhor legibilidade
             """
-
+# Instrução de resposta completa
+            system_prompt += """
+            
+            IMPORTANTE:
+            - Forneça uma resposta COMPLETA e DETALHADA com no mínimo 2000 caracteres
+            - Use TODAS as informações relevantes do contexto
+            - Cite artigos e trechos específicos dos regulamentos
+            - Se houver múltiplas regras, mencione TODAS
+            - Estruture a resposta com:
+              * Introdução clara
+              * Lista numerada ou com bullets das principais regras
+              * Citação dos artigos relevantes
+              * Conclusão ou orientação final
+            - Use formatação markdown para melhor legibilidade
+            
+            REGRAS CRÍTICAS:
+            - NUNCA invente valores, números, datas ou informações não presentes nos documentos
+            - Se não encontrar uma informação específica (como valor de multa), diga claramente "não especificado no regulamento"
+            - Cite os artigos EXATAMENTE como aparecem nos documentos originais
+            - Se houver informações conflitantes entre documentos diferentes, mencione ambas as versões
+            - Mantenha fidelidade TOTAL ao texto original - não adicione informações que não estão escritas
+            """
             prompt = f"""Baseado nos seguintes documentos do condomínio e base de conhecimento geral:
 
 {context}
