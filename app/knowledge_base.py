@@ -100,16 +100,16 @@ async def upload_knowledge_document(
         
         # Preparar resposta de sucesso
        response = {
-    "success": True,
-    "message": f"✅ Documento processado com sucesso!",
-    "details": {  # <-- Mudar de "description" para "details"
-        "filename": file.filename,
-        "category": category,
-        "chunks_created": process_result.get('chunks_created', 0),
-        "embeddings_created": process_result.get('embeddings_created', 0),
-        "doc_id": doc_id
-    }
-} 
+            "success": True,
+            "message": f"✅ Documento processado com sucesso!",
+            "details": {
+                "filename": file.filename,
+                "category": category,
+                "chunks_created": process_result.get('chunks_created', 0),
+                "embeddings_created": process_result.get('embeddings_created', 0),
+                "doc_id": doc_id
+            }
+        }
         
         print(f"SUCESSO: {response}")
         return response
