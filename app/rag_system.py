@@ -117,7 +117,7 @@ class RAGSystem:
                                 'text': para.strip(),
                                 'metadata': {
                                     'chunk_type': 'paragraph',
-                                    'article_num': article_num,
+                                    'article_num': str(article_num) if article_num else "0",
                                     'paragraph_num': j,
                                     'doc_type': doc_type
                                 }
@@ -127,7 +127,7 @@ class RAGSystem:
                         'text': section.strip(),
                         'metadata': {
                             'chunk_type': 'article',
-                            'article_num': article_num,
+                            'article_num': str(article_num) if article_num else "0",
                             'doc_type': doc_type
                         }
                     })
