@@ -99,7 +99,7 @@ async def upload_knowledge_document(
         db.commit()
         
         # Preparar resposta de sucesso
-       response = {
+        response = {
             "success": True,
             "message": f"✅ Documento processado com sucesso!",
             "details": {
