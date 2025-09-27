@@ -389,10 +389,11 @@ async def upload_document_v2(
         if result.get('success'):
             doc = Document(
                 filename=file.filename,
-                category=category,
+                file_path=f"uploads/{file.filename}",
                 condo_id=condominium_id,
                 uploaded_by=current_user.id,
-                file_size=len(content),
+                file_size=len(content)
+            )
                 chunks_created=result.get('chunks_created', 0)
             )
             db.add(doc)
