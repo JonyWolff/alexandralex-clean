@@ -376,8 +376,13 @@ RESPOSTA (cite claramente a origem de cada informação):"""
             context_parts = []
             sources = []
             for match in results['matches']:
-                if 'text' in match.get('metadata', {}):
-                    context_parts.append(match['metadata']['text'])
+                metadata = match.get('metadata', {})
+                # VALIDAÇÃO CRÍTICA: Apenas chunks do namespace correto
+                if ('text' in metadata and 
+                    metadata.get('sindico_id') == sindico_id and 
+                    metadata.get('condo_id') == condo_id):
+                    context_parts.append(metadata['text'])
+                    logger.info(f"✅ Chunk válido do namespace correto")
                     sources.append({
                         'title': match['metadata'].get('title', 'Documento'),
                         'type': match['metadata'].get('doc_type', 'general')
