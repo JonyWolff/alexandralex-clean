@@ -388,11 +388,12 @@ async def upload_document_v2(
         # Salvar no banco se sucesso
         if result.get('success'):
             doc = Document(
-                
+                filename=file.filename,
                 file_path=f"uploads/{file.filename}",
                 condo_id=condominium_id,
                 uploaded_by=current_user.id,
                 file_size=len(content)
+            )
             )
             db.add(doc)
             db.commit()
