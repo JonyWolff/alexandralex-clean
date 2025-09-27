@@ -394,7 +394,6 @@ async def upload_document_v2(
                 uploaded_by=current_user.id,
                 file_size=len(content)
             )
-            )
             db.add(doc)
             db.commit()
             db.refresh(doc)
