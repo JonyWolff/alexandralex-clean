@@ -394,7 +394,6 @@ async def upload_document_v2(
                 uploaded_by=current_user.id,
                 file_size=len(content)
             )
-                chunks_created=result.get('chunks_created', 0)
             )
             db.add(doc)
             db.commit()
