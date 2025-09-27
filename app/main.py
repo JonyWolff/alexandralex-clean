@@ -307,8 +307,8 @@ async def query_documents(
         raise HTTPException(status_code=403, detail="Sem permissão para este condomínio")
     
     try:
-        rag = get_or_create_rag()
-        result = rag.query(query=query, sindico_id=current_user.id, condo_id=condominium_id)
+        rag = get_or_create_langchain_rag()
+        result = rag.query(question=query, sindico_id=current_user.id, condo_id=condominium_id)
         
         query_record = Query(
             user_id=current_user.id,
