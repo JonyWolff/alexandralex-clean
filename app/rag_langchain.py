@@ -219,6 +219,7 @@ RESPOSTA (cite claramente a origem de cada informação):"""
         """
         try:
             namespace = self.namespace_for(sindico_id, condo_id)
+        logger.info(f"RASTREAMENTO Query: namespace={namespace}, user={sindico_id}, condo={condo_id}")
             logger.info(f"📄 Processando PDF para namespace: {namespace}")
             
             # Extrair texto com pdfplumber (melhor que PyPDF2)
@@ -294,6 +295,7 @@ RESPOSTA (cite claramente a origem de cada informação):"""
         """Processa TXT com isolamento por namespace"""
         try:
             namespace = self.namespace_for(sindico_id, condo_id)
+        logger.info(f"RASTREAMENTO Query: namespace={namespace}, user={sindico_id}, condo={condo_id}")
             logger.info(f"📝 Processando TXT para namespace: {namespace}")
             
             if isinstance(txt_content, bytes):
@@ -353,6 +355,7 @@ RESPOSTA (cite claramente a origem de cada informação):"""
         """Query com busca direta no Pinecone (solução que funciona)"""
         try:
             namespace = self.namespace_for(sindico_id, condo_id)
+        logger.info(f"RASTREAMENTO Query: namespace={namespace}, user={sindico_id}, condo={condo_id}")
             logger.info(f"🔍 Query em namespace: {namespace}")
             
             # Criar embedding da pergunta
@@ -475,6 +478,7 @@ RESPOSTA (cite claramente a origem de cada informação):"""
         """Remove documento do namespace específico"""
         try:
             namespace = self.namespace_for(sindico_id, condo_id)
+        logger.info(f"RASTREAMENTO Query: namespace={namespace}, user={sindico_id}, condo={condo_id}")
             
             # LangChain não tem delete direto, precisamos usar Pinecone diretamente
             ids_to_delete = [f"{doc_id}_{i}" for i in range(100)]

@@ -375,6 +375,7 @@ class RAGSystem:
                 return {"success": False, "error": "PDF vazio ou sem texto extraível", "chunks_created": 0, "embeddings_created": 0}
 
             namespace = self.namespace_for(sindico_id, condo_id)
+        logger.info(f"RASTREAMENTO Query: namespace={namespace}, user={sindico_id}, condo={condo_id}")
             print(f"DEBUG PDF: Usando namespace: {namespace}")
 
             # Detectar tipo de documento
@@ -546,6 +547,7 @@ class RAGSystem:
                 return {"success": False, "error": "Arquivo TXT vazio", "chunks_created": 0, "embeddings_created": 0}
 
             namespace = self.namespace_for(sindico_id, condo_id)
+        logger.info(f"RASTREAMENTO Query: namespace={namespace}, user={sindico_id}, condo={condo_id}")
             print(f"DEBUG TXT: Usando namespace: {namespace}")
 
             # Detectar tipo de documento
@@ -907,6 +909,7 @@ Se houver regras específicas sobre o tema, liste todas elas."""
         """Remove um documento do índice"""
         try:
             namespace = self.namespace_for(sindico_id, condo_id)
+        logger.info(f"RASTREAMENTO Query: namespace={namespace}, user={sindico_id}, condo={condo_id}")
             
             # Listar todos os IDs relacionados ao documento
             ids_to_delete = []
