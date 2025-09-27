@@ -381,7 +381,7 @@ async def upload_document_v2(
                 txt_content=content,
                 sindico_id=current_user.id,
                 condo_id=condominium_id,
-                title=title or file.filename,
+                filename=file.filename,
                 category=category
             )
         
